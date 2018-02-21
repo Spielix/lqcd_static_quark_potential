@@ -6,4 +6,6 @@ typedef struct Par {
     long int seed;
     gsl_rng_type *gen_type;
     gsl_rng *ran_gen;
+    int num_su3;
+    double eps;
 } Par;

@@ -1,11 +1,11 @@
 CC = gcc
 CFLAGS  = -g -O4 -Wall -pedantic 
 LOADLIBES = -lm -lgsl -lgslcblas
-VPATH = ./src
+VPATH = ./source
 
-INCLUDES = ranlxs.h
+#INCLUDES = ranlxs.h
 
-OBJS = static_quark_potential.o ranlxs.o
+OBJS = static_quark_potential.o
 
 static_quark_potential: ${OBJS}
 

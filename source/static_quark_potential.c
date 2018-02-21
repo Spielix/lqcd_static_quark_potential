@@ -1,11 +1,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+/* #include <unistd.h>
+#include <fcntl.h> */
 #include <time.h>
 #include <math.h>
-#include <gsl/gsl_rng.h> /* For RANLXS random number generation */
+
+#include <gsl/gsl_rng.h>    /* random number generation */
+#include <gsl/gsl_complex.h>
+#include <gsl/gsl_complex_math.h>
+#include <gsl/gsl_matrix_complex_double.h>
+#include <gsl/gsl_vector_complex_double.h>
+#include <gsl/gsl_blas.h>   /* Basic Linear Algebra Subprograms */
 
 #include "static_quark_potential.h"
 
@@ -18,28 +24,108 @@ void print_results(Par *par, double *results) {
 }
 
 
-void init_spin(Par *par, int *spin) {
-    int i, L2 = par->L * par->L;
+int init_su3(Par *par, gsl_matrix_complex **su3) {
+    int n, i, j;
+    gsl_vector_complex *vec[3], *tempv;
+    gsl_complex tempz;
 
-    /* Setting random Spin values on the lattice */
-    for (i = 0; i < L2; i++) {
-        /* Getting a random number from gsl_rng */
-        spin[i] = (int)(2. * gsl_rng_uniform(par->ran_gen));
-        if (!spin[i]) spin[i] = -1;
+    /* allocating memory for three vectors which will temporarily store the column vectors of the matrices for
+     * unitarization */
+    for (i = 0; i < 3; i++) {
+        vec[i] = gsl_vector_complex_alloc(3);
     }
+    tempv = gsl_vector_complex_alloc(3);
+    if ((vec[0] == NULL) || (vec[1] == NULL) || (vec[2] == NULL) || (tempv == NULL)) {
+        printf("Error: Allocating memory for vector in init_su3 failed. Exiting...\n");
+        return 1;
+    }
+
+    for (n = 0; n < par->num_su3 / 2; n++) {
+        /* initialize random hermitian matrix */
+        for (i = 0; i < 3; i++) {
+            for (j = 0; j < 3; j++) {
+                gsl_matrix_complex_set(
+                    su3[n], 
+                    i, 
+                    j, 
+                    gsl_complex_rect((i == j), par->eps * (gsl_rng_uniform_pos(par->ran_gen) * 2. - 1.))
+                );
+            }
+        }
+        /* unitarize the matrix (Gram-Schmidt) */
+        for (i = 0; i < 3; i++)
+            gsl_matrix_complex_get_col(vec[i], su3[n], i);
+
+        gsl_blas_zdscal(1. / gsl_blas_dznrm2(vec[0]), vec[0]);     /* normalization */
+
+        gsl_blas_zdotu(vec[0], vec[1], &tempz);
+        gsl_vector_complex_memcpy(tempv, vec[0]);
+        gsl_vector_complex_scale(tempv, tempz);
+        gsl_vector_complex_sub(vec[1], tempv);
+        gsl_blas_zdscal(1. / gsl_blas_dznrm2(vec[1]), vec[1]);     /* normalization */
+
+        gsl_blas_zdotu(vec[0], vec[2], &tempz);
+        gsl_vector_complex_memcpy(tempv, vec[0]);
+        gsl_vector_complex_scale(tempv, tempz);
+        gsl_vector_complex_sub(vec[2], tempv);
+        gsl_blas_zdotu(vec[1], vec[2], &tempz);
+        gsl_vector_complex_memcpy(tempv, vec[1]);
+        gsl_vector_complex_scale(tempv, tempz);
+        gsl_vector_complex_sub(vec[2], tempv);
+        gsl_blas_zdscal(1. / gsl_blas_dznrm2(vec[2]), vec[2]);     /* normalization */
+
+        for (i = 0; i < 3; i++)
+            gsl_matrix_complex_set_col(su3[n], i, vec[i]);
+    }
+
+    /* create inverse matrices by transposing and taking the complex conjugate of each element */
+    for (n = par->num_su3 / 2; n < par->num_su3; n++) {
+        gsl_matrix_complex_transpose_memcpy(su3[n], su3[n - par->num_su3 / 2]);
+        for (i = 0; i < 3; i++) {
+            for (j = 0; j < 3; j++) {
+                gsl_matrix_complex_set(
+                    su3[n], 
+                    i, 
+                    j, 
+                    gsl_complex_conjugate(gsl_matrix_complex_get(su3[n], i, j))
+                );
+            }
+        }
+    }
+
+    for (i = 0; i < 3; i++)
+        gsl_vector_complex_free(vec[i]);
+    gsl_vector_complex_free(tempv);
+
+    /* DEBUG: 
+    for (n = 0; n < par->num_su3 / 2; n++) {
+        
+    } */
+
+    return 0;
 }
 
 
 int sim(Par *par, int *spin) {
     double results [2];
-    int i;
+    int i, succ;
+    
+    gsl_matrix_complex **su3;
 
-    for (i = 0; i < par->nconfigs; i++) {
-        init_spin(par, spin);
-        measure(par, results, spin);
-        print_results(par, results);
+    for (i = 1; i < par->num_su3; i++) {
+        su3[i] = gsl_matrix_complex_alloc(3, 3);
+        if (su3[i] == NULL) {
+            printf("Error: failed allocating memory for su3 matrices. Exiting...\n");
+            return 1;
+        }
     }
-    return 0;
+    
+    succ = !init_su3(par, su3);
+
+    for (i = 0; i < par->num_su3; i++)
+        gsl_matrix_complex_free(su3[i]);
+
+    return !succ;
 }
 
 
@@ -114,6 +200,16 @@ int read_args(Par *par, char *arg) {
         return 0;
     }
     
+    if (!strcmp(arg, "num_su3")) {
+        par->num_su3 = strtol(s, NULL, 0);
+        return 0;
+    }
+    
+    if (!strcmp(arg, "eps")) {
+        par->eps = strtod(s, NULL);
+        return 0;
+    }
+
 /*    if (!strcmp(arg, "gen_type")) {
         par->gen_type = strtol(s, NULL, 0);
         return 0;
@@ -133,6 +229,8 @@ int main(int argc, char *argv[])
     par->seed = 0;
     par->nconfigs = 1;
     par->gen_type = gsl_rng_ranlxs0;
+    par->num_su3 = 100;
+    par->eps = 1.;
   
     if (argc == 1) {
         printf("Usage: %s L=16 nconfigs=100 run\n", argv[0]);
