@@ -43,7 +43,7 @@ int init_su3(Par *par, gsl_matrix_complex **su3) {
     for (n = 0; n < par->num_su3 / 2; n++) {
         /* initialize random hermitian matrix */
         for (i = 0; i < 3; i++) {
-            for (j = 0; j < 3; j++) {
+            for (j = 0; j < 3; j++) {   /* su3_{i,j} are the matrix components */
                 gsl_matrix_complex_set(
                     su3[n], 
                     i, 
@@ -53,29 +53,17 @@ int init_su3(Par *par, gsl_matrix_complex **su3) {
             }
         }
         /* unitarize the matrix (Gram-Schmidt) */
-        for (i = 0; i < 3; i++)
+        for (i = 0; i < 3; i++) {
             gsl_matrix_complex_get_col(vec[i], su3[n], i);
-
-        gsl_blas_zdscal(1. / gsl_blas_dznrm2(vec[0]), vec[0]);     /* normalization */
-
-        gsl_blas_zdotu(vec[0], vec[1], &tempz);
-        gsl_vector_complex_memcpy(tempv, vec[0]);
-        gsl_vector_complex_scale(tempv, tempz);
-        gsl_vector_complex_sub(vec[1], tempv);
-        gsl_blas_zdscal(1. / gsl_blas_dznrm2(vec[1]), vec[1]);     /* normalization */
-
-        gsl_blas_zdotu(vec[0], vec[2], &tempz);
-        gsl_vector_complex_memcpy(tempv, vec[0]);
-        gsl_vector_complex_scale(tempv, tempz);
-        gsl_vector_complex_sub(vec[2], tempv);
-        gsl_blas_zdotu(vec[1], vec[2], &tempz);
-        gsl_vector_complex_memcpy(tempv, vec[1]);
-        gsl_vector_complex_scale(tempv, tempz);
-        gsl_vector_complex_sub(vec[2], tempv);
-        gsl_blas_zdscal(1. / gsl_blas_dznrm2(vec[2]), vec[2]);     /* normalization */
-
-        for (i = 0; i < 3; i++)
+            for (j = 0; j < i; j++) {   /* i,j each go over the column vectors of the matrix */
+                gsl_blas_zdotu(vec[j], vec[i], &tempz);
+                gsl_vector_complex_memcpy(tempv, vec[j]);
+                gsl_vector_complex_scale(tempv, tempz);
+                gsl_vector_complex_sub(vec[i], tempv);
+            }
+            gsl_blas_zdscal(1. / gsl_blas_dznrm2(vec[i]), vec[i]);  /* normalization */
             gsl_matrix_complex_set_col(su3[n], i, vec[i]);
+        }
     }
 
     /* create inverse matrices by transposing and taking the complex conjugate of each element */
