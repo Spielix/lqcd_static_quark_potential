@@ -15,10 +15,13 @@
 
 #include "static_quark_potential.h"
 
+/* calculate the position of a specific link in the array */
 static inline int ind(int i, int j, int k, int l, int dir, int le) {
     return (((le * i + j) * le + k) * le + l) * le + dir;
 }
 
+/* calculate the position of a specific link in the array, while applying periodic boundary conditions to all
+ * coordinates */
 static inline int periodic_ind1111(int i, int j, int k, int l, int dir, int le) {
     return (((le * (i & (le - 1)) + (j & (le - 1))) * le + (k & (le - 1))) * le + (l & (le - 1))) * le + dir;
 }
@@ -39,6 +42,7 @@ static inline int periodic_ind0001(int i, int j, int k, int l, int dir, int le) 
     return (((le * i + j) * le + k) * le + (l & (le - 1))) * le + dir;
 }
 
+/* function to get the conjugate transpose matrix */
 void psl_matrix_complex_dagger(gsl_matrix_complex *m) {
     gsl_matrix_complex_transpose(m);
     for (int i = 0; i < 3; i++) {
@@ -47,6 +51,7 @@ void psl_matrix_complex_dagger(gsl_matrix_complex *m) {
     }
 }
 
+/* function to save the conjugate transpose matrix of src under dest */
 void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_complex *src) {
     gsl_matrix_complex_transpose_memcpy(dest, src); 
     for (int i = 0; i < 3; i++) {
@@ -123,7 +128,7 @@ int init_su3(Par *par, gsl_matrix_complex **su3) {
 }
 
 void init_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **su3) {
-
+    /* initialize all independent links with random SU(3) matrices */
     for (int i = 0; i < par->L; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
@@ -138,6 +143,8 @@ void init_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
             }
         }
     }
+
+    /* generate the daggered matrices */
     for (int i = 0; i < par->L; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
@@ -161,13 +168,168 @@ void init_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
     }
 }
 
+int update_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **su3) {
+    double Delta_S;
+    gsl_complex z_zero = gsl_complex_rect(0., 0.), z_temp;
+    gsl_matrix_complex *m_temp_1 = NULL, *m_temp_2 = NULL, *m_temp_3 = NULL, *Gamma = NULL;
+
+    m_temp_1 = gsl_matrix_complex_alloc(3, 3);
+    m_temp_2 = gsl_matrix_complex_alloc(3, 3);
+    m_temp_3 = gsl_matrix_complex_alloc(3, 3);
+    Gamma = gsl_matrix_complex_alloc(3, 3);
+    if ((m_temp_1 == NULL) || (m_temp_2 == NULL) || (m_temp_3) || (Gamma == NULL)) {
+        printf("Error: Failed allocating memory for temporary matrix/matrices and/or Gamma matrix (lattice update). Exiting...\n");
+        return 1;
+    }
+    /* Loop through the whole lattice (all independent links) */
+    for (int i = 0; i < par->L; i++) {
+        for (int j = 0; j < par->L; j++) {
+            for (int k = 0; k < par->L; k++) {
+                for (int l = 0; l < par->L; l++) {
+                    for (int dir_1 = 0; dir_1 < 4; dir_1++) {
+                        /* calculate Gamma_mu(x) which is needed to calculate the differences in action later */
+                        gsl_matrix_complex_set_zero(Gamma);
+                        for (int dir_2 = 0; dir_2 < 4; dir_2++) {
+                            if (dir_1 == dir_2)
+                                continue;
+                            gsl_matrix_complex_set_zero(m_temp_1);
+                            gsl_matrix_complex_set_zero(m_temp_2);
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans,
+                                z_zero,
+                                lattice[periodic_ind1111(
+                                    i + (dir_1 == 0), 
+                                    j + (dir_1 == 1),
+                                    k + (dir_1 == 2),
+                                    l + (dir_1 == 3),
+                                    dir_2,
+                                    par->L
+                                )],
+                                lattice[periodic_ind1111(
+                                    i + (dir_1 == 0) + (dir_2 == 0),
+                                    j + (dir_1 == 1) + (dir_2 == 1),
+                                    k + (dir_1 == 2) + (dir_2 == 2),
+                                    l + (dir_1 == 3) + (dir_2 == 3),
+                                    dir_1 + 4,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_1
+                            );
+                            gsl_blas_zgemm(
+                                CblasNoTrans,
+                                CblasNoTrans,
+                                z_zero,
+                                m_temp_1,
+                                lattice[periodic_ind1111(
+                                    i + (dir_2 == 0), 
+                                    j + (dir_2 == 1),
+                                    k + (dir_2 == 2),
+                                    l + (dir_2 == 3),
+                                    dir_2 + 4,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_2
+                            );
+                            gsl_matrix_complex_add(Gamma, m_temp_2);
+
+                            gsl_matrix_complex_set_zero(m_temp_1);
+                            gsl_matrix_complex_set_zero(m_temp_2);
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans,
+                                z_zero,
+                                lattice[periodic_ind1111(
+                                    i + (dir_1 == 0), 
+                                    j + (dir_1 == 1),
+                                    k + (dir_1 == 2),
+                                    l + (dir_1 == 3),
+                                    dir_2 + 4,
+                                    par->L
+                                )],
+                                lattice[periodic_ind1111(
+                                    i + (dir_1 == 0) - (dir_2 == 0),
+                                    j + (dir_1 == 1) - (dir_2 == 1),
+                                    k + (dir_1 == 2) - (dir_2 == 2),
+                                    l + (dir_1 == 3) - (dir_2 == 3),
+                                    dir_1 + 4,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_1
+                            );
+                            gsl_blas_zgemm(
+                                CblasNoTrans,
+                                CblasNoTrans,
+                                z_zero,
+                                m_temp_1,
+                                lattice[periodic_ind1111(
+                                    i - (dir_2 == 0), 
+                                    j - (dir_2 == 1),
+                                    k - (dir_2 == 2),
+                                    l - (dir_2 == 3),
+                                    dir_2,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_2
+                            );
+                            gsl_matrix_complex_add(Gamma, m_temp_2);
+                        }
+                        /* do the specified number of MC-updates of this link */
+                        for (int n = 0; n < par->num_of_hits; n++) {
+                            gsl_matrix_complex_set_zero(m_temp_1);
+                            gsl_matrix_complex_set_zero(m_temp_3);
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans, 
+                                z_zero, 
+                                su3[(int)(par->num_su3 * gsl_rng_uniform(par->ran_gen))], 
+                                lattice[ind(i, j, k, l, dir_1, par->L)],
+                                z_zero, 
+                                m_temp_1
+                            );
+                            /* measure the difference in action the new link operator does for the lattice */
+                            gsl_matrix_complex_memcpy(m_temp_2, m_temp_1);
+                            gsl_matrix_complex_sub(m_temp_2, lattice[ind(i, j, k, l, dir_1, par->L)]);
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans,
+                                z_zero,
+                                m_temp_2,
+                                Gamma,
+                                z_zero,
+                                m_temp_3
+                            );
+                            z_temp = z_zero;
+                            for (int m = 0; m < 3; m++) 
+                                z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_3, m, m));
+                            Delta_S = GSL_REAL(z_temp);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    gsl_matrix_complex_free(m_temp_1);
+    gsl_matrix_complex_free(m_temp_2);
+    gsl_matrix_complex_free(m_temp_3);
+    gsl_matrix_complex_free(Gamma);
+    return 0;
+}
+
 int sim(Par *par, gsl_matrix_complex **lattice) {
     double results [2];
-    int i, succ;
+    int succ;
     
     gsl_matrix_complex **su3;
 
-    for (i = 1; i < par->num_su3; i++) {
+    /* allocate memory for a specified number of random SU(3) matrices */
+    for (int i = 1; i < par->num_su3; i++) {
         su3[i] = gsl_matrix_complex_alloc(3, 3);
         if (su3[i] == NULL) {
             printf("Error: failed allocating memory for su3 matrices. Exiting...\n");
@@ -175,14 +337,18 @@ int sim(Par *par, gsl_matrix_complex **lattice) {
         }
     }
     
+    /* generate the SU(3) matrices */
     succ = !init_su3(par, su3);
     if (!succ) {
-        for (i = 0; i < par->num_su3; i++)
+        for (int i = 0; i < par->num_su3; i++)
             gsl_matrix_complex_free(su3[i]);
          return !succ;
     }
-    
+
+    /* initialize all links in the lattice */
     init_lattice(par, lattice, su3);
+
+
     return 0;
 }
 
@@ -192,12 +358,12 @@ int read_args(Par *par, char *arg) {
     int success = 1;
     char *s;
     
-    /* running the simulation with already given parameters */
     if (!strcmp(arg, "run")) {
         if (!par->L) {
             printf("Give system size L!\n");
             return 1;
         }
+        /* preparing for the simulation */
         int num_of_links = par->L * par->L * par->L * par->L * 8;
         
         /* initialization of random number generator */
@@ -214,6 +380,7 @@ int read_args(Par *par, char *arg) {
         if (par->seed) gsl_rng_set(par->ran_gen, par->seed);
         else gsl_rng_set(par->ran_gen, (long)time(NULL));
         
+        /* running the simulation with already given parameters */
         success = !sim(par, lattice);
         
         gsl_rng_free(par->ran_gen);
@@ -245,7 +412,8 @@ int read_args(Par *par, char *arg) {
             fprintf(stderr, "L has to be a power of 2. Exiting...\n");
             return 1;
         }
-
+        
+        /* allocate memory for the lattice (link matrices) */
         num_of_links = par->L * par->L * par->L * par->L * 8;
         
         lattice = realloc(lattice, num_of_links * sizeof(gsl_matrix_complex *));
@@ -286,6 +454,11 @@ int read_args(Par *par, char *arg) {
         return 0;
     }
 
+    if (!strcmp(arg, "num_of_hits")) {
+        par->num_of_hits = strtol(s, NULL, 0);
+        return 0;
+    }
+
 /*    if (!strcmp(arg, "gen_type")) {
         par->gen_type = strtol(s, NULL, 0);
         return 0;
@@ -298,14 +471,23 @@ int read_args(Par *par, char *arg) {
 
 int main(int argc, char *argv[])
 {
-    Par *par = malloc(sizeof(Par));
+    Par *par = NULL;
+    /* allocate memory for simulation parameters */
+     par = malloc(sizeof(Par));
+     if (par == NULL) {
+        printf("Error: Failed allocating memory for simulation parameters. Exiting...\n");
+        exit(EXIT_FAILURE);
+     }
 
+    
+    /* initialize simulation parameters with statndard values */
     par->L = 0;
     par->seed = 0;
     par->nconfigs = 1;
     par->gen_type = gsl_rng_ranlxs0;
     par->num_su3 = 100;
     par->eps = 1.;
+    par->num_of_hits = 10;
   
     if (argc == 1) {
         printf("Usage: %s L=16 nconfigs=100 run\n", argv[0]);
@@ -322,4 +504,5 @@ int main(int argc, char *argv[])
         }
 
     free(par);
+    exit(EXIT_SUCCESS);
 }

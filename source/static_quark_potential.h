@@ -8,4 +8,5 @@ typedef struct Par {
     gsl_rng *ran_gen;
     int num_su3;
     double eps;
+    int num_of_hits;
 } Par;
