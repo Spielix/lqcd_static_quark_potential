@@ -60,7 +60,155 @@ void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_compl
     }
 }
 
-void measure(Par *par, double *results, int *spin) {
+int measure(Par *par, double *results, gsl_matrix_complex **lattice) {
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.);
+    gsl_complex z_temp;
+    gsl_matrix_complex *m_temp_1 = NULL, *m_temp_2 = NULL;
+
+    m_temp_1 = gsl_matrix_complex_alloc(3, 3);
+    m_temp_2 = gsl_matrix_complex_alloc(3, 3);
+    if ((m_temp_1 == NULL) || (m_temp_2 == NULL)) {
+        printf("Error: Failed allocating memory for temporary matrices used in the measurement function. Exiting...\n");
+        return 1;
+    }
+    
+    for (int i = 0; i < par->L; i++) {
+        for (int j = 0; j < par->L; j++) {
+            for (int k = 0; k < par->L; k++) {
+                for (int l = 0; l < par->L; l++) {
+                    for (int dir_1 = 0; dir_1 < 4; dir_1++) {
+                        for (int dir_2 = dir_1 + 1; dir_2 < 4; dir_2++) {
+                            gsl_matrix_complex_set_zero(m_temp_1);
+                            gsl_matrix_complex_set_zero(m_temp_2);
+
+                            /* calculate a x a Wilson-loop */
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans, 
+                                z_zero, 
+                                lattice[ind(i, j, k, l, dir_1, par->L)],
+                                lattice[periodic_ind1111(
+                                    i + (dir_1 == 0), 
+                                    j + (dir_1 == 1), 
+                                    k + (dir_1 == 2), 
+                                    l + (dir_1 == 3), 
+                                    dir_2,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_1
+                            );
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans, 
+                                z_zero, 
+                                m_temp_1,
+                                lattice[periodic_ind1111(
+                                    i + (dir_1 == 0) + (dir_2 == 0), 
+                                    j + (dir_1 == 1) + (dir_2 == 0), 
+                                    k + (dir_1 == 2) + (dir_2 == 0), 
+                                    l + (dir_1 == 3) + (dir_2 == 0), 
+                                    dir_1 + 4,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_2
+                            );
+                            gsl_matrix_complex_set_zero(m_temp_1);
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans, 
+                                z_zero, 
+                                m_temp_2,
+                                lattice[periodic_ind1111(
+                                    i + (dir_2 == 0), 
+                                    j + (dir_2 == 1), 
+                                    k + (dir_2 == 2), 
+                                    l + (dir_2 == 3), 
+                                    dir_2 + 4,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_1
+                            );
+                            z_temp = z_zero;
+                            for (int m = 0; m < 3; m++)     /* trace */
+                                z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_1, m, m));
+                            result[0] += GSL_REAL(z_temp);
+                            
+                            gsl_matrix_complex_set_zero(m_temp_1);
+
+                            /* calculate first a x 2a Wilson-loop, while reusing the contentof m_temp_2 from the a x a Wilson-loop */
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans, 
+                                z_zero, 
+                                m_temp_2,
+                                lattice[periodic_ind1111(
+                                    i + (dir_2 == 0), 
+                                    j + (dir_2 == 1), 
+                                    k + (dir_2 == 2), 
+                                    l + (dir_2 == 3), 
+                                    dir_1 + 4,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_1
+                            );
+                            gsl_matrix_complex_set_zero(m_temp_2);
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans, 
+                                z_zero, 
+                                m_temp_1,
+                                lattice[periodic_ind1111(
+                                    i + (dir_2 == 0) - (dir_1 == 0), 
+                                    j + (dir_2 == 1) - (dir_1 == 1), 
+                                    k + (dir_2 == 2) - (dir_1 == 2), 
+                                    l + (dir_2 == 3) - (dir_1 == 3), 
+                                    dir_2 + 4,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_2
+                            );
+                            gsl_matrix_complex_set_zero(m_temp_1);
+                            gsl_blas_zgemm(
+                                CblasNoTrans, 
+                                CblasNoTrans, 
+                                z_zero, 
+                                m_temp_2,
+                                lattice[periodic_ind1111(
+                                    i - (dir_1 == 0), 
+                                    j - (dir_1 == 1), 
+                                    k - (dir_1 == 2), 
+                                    l - (dir_1 == 3), 
+                                    dir_1,
+                                    par->L
+                                )],
+                                z_zero,
+                                m_temp_1
+                            );
+
+                            z_temp = z_zero;
+                            for (int m = 0; m < 3; m++)     /* trace */
+                                z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_1, m, m));
+                            result[1] += GSL_REAL(z_temp);
+
+                            gsl_matrix_complex_set_zero(m_temp_1);
+                            gsl_matrix_complex_set_zero(m_temp_2);
+
+                            /* calculating the second a x 2a Wilson-loop */
+
+                        }
+                    }
+                }
+            }
+        }
+    }
+    /* factor 1/3 from Wilson-loop and normalization */
+    result[0] /= (double)(3 * par->L * par->L * par->L * par->L * 6); 
+    result[1] /= (double)(3 * par->L * par->L * par->L * par->L * 12);
 }
 
 
@@ -170,7 +318,8 @@ void init_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
 
 int update_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **su3) {
     double Delta_S;
-    gsl_complex z_zero = gsl_complex_rect(0., 0.), z_temp;
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.);
+    gsl_complex z_temp;
     gsl_matrix_complex *m_temp_1 = NULL, *m_temp_2 = NULL, *m_temp_3 = NULL, *Gamma = NULL;
 
     m_temp_1 = gsl_matrix_complex_alloc(3, 3);
@@ -306,9 +455,17 @@ int update_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **
                             z_temp = z_zero;
                             for (int m = 0; m < 3; m++) 
                                 z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_3, m, m));
-                            Delta_S = GSL_REAL(z_temp);
+                            Delta_S = GSL_REAL(z_temp);     /* ------ Faktoren??? ------ */
+                            /* accept/reject step */
+                            if (Delta_S < 0.) {
+                                gsl_matrix_complex_memcpy(lattice[ind(i, j, k, l, dir_1, par->L)], m_temp_1);
+                                continue;
+                            } else {
+                                if (gsl_rng_uniform(par->ran_gen) < exp(-Delta_S)) {
+                                    gsl_matrix_complex_memcpy(lattice[ind(i, j, k, l, dir_1, par->L)], m_temp_1);
+                                }
+                            }
                         }
-
                     }
                 }
             }
@@ -324,7 +481,6 @@ int update_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **
 
 int sim(Par *par, gsl_matrix_complex **lattice) {
     double results [2];
-    int succ;
     
     gsl_matrix_complex **su3;
 
@@ -338,16 +494,36 @@ int sim(Par *par, gsl_matrix_complex **lattice) {
     }
     
     /* generate the SU(3) matrices */
-    succ = !init_su3(par, su3);
-    if (!succ) {
+    if (init_su3(par, su3)) {
         for (int i = 0; i < par->num_su3; i++)
             gsl_matrix_complex_free(su3[i]);
-         return !succ;
+         return 1;
     }
 
     /* initialize all links in the lattice */
     init_lattice(par, lattice, su3);
-
+    
+    /* thermalize the lattice */
+    for (int i = 0; i < par->n_therm; i++) {
+        if(update_lattice(par, lattice, su3)) {
+            for (int j = 0; j < par->num_su3; j++) 
+                gsl_matrix_complex_free(su3[j]);
+            free(su3);
+            return 1;
+        }
+    }
+    /* take measurements every n_corr-th update-sweep */
+    for (int i = 0; i < par->n_measure; i++) {
+        for (int j = 0; j < par->n_corr; j++) {
+            if(update_lattice(par, lattice, su3)) {
+                for (int j = 0; j < par->num_su3; j++) 
+                    gsl_matrix_complex_free(su3[j]);
+                free(su3);
+                return 1;
+            }
+        }
+        measure();
+    }
 
     return 0;
 }
