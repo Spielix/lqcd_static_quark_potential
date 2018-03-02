@@ -1,12 +1,15 @@
 #include <gsl/gsl_rng.h>
 
 typedef struct Par {
-    int nconfigs;
+    int n_configs;
     int L;
     long int seed;
     gsl_rng_type *gen_type;
     gsl_rng *ran_gen;
-    int num_su3;
+    int n_su3;
     double eps;
-    int num_of_hits;
+    int n_hits;
+    int n_therm;
+    int n_corr;
+    double beta;
 } Par;
