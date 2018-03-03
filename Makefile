@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS  = -g -O4 -Wall -pedantic -fsanitize=address 
-LOADLIBES = -lasan -lm -lgsl -lgslcblas # -lasan <-- has to be the first flag
+CFLAGS  = -g -O4 -Wall -pedantic # -fsanitize=address 
+LOADLIBES = -lm -lgsl -lgslcblas # -lasan <-- has to be the first flag
 VPATH = ./source
 
 #INCLUDES = ranlxs.h
