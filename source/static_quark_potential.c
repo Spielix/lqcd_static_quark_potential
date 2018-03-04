@@ -36,7 +36,7 @@ void psl_matrix_complex_dagger(gsl_matrix_complex *m) {
     }
 }
 
-/* function to save the conjugate transpose matrix of src under dest */
+/* function to save the conjugate transpose matrix of src in dest */
 void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_complex *src) {
     gsl_matrix_complex_transpose_memcpy(dest, src); 
     for (int i = 0; i < 3; i++) {
@@ -392,6 +392,8 @@ int update_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **
                         }
                         /* do the specified number of MC-updates of this link */
                         for (int n = 0; n < par->n_hits; n++) {
+                            /* multiply with a random SU(3)-matrix and save in a temporary matrix, until we
+                             * know if we will use it */
                             gsl_blas_zgemm(
                                 CblasNoTrans, 
                                 CblasNoTrans, 
@@ -416,7 +418,7 @@ int update_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **
                             z_temp = z_zero;
                             for (int m = 0; m < 3; m++)     /* trace */
                                 z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_3, m, m));
-                            Delta_S = -par->beta * GSL_REAL(z_temp);     /* ------ Faktoren??? ------ */
+                            Delta_S = -par->beta * GSL_REAL(z_temp) / 3.;
                             /* accept/reject step */
                             if (Delta_S < 0.) {
                                 /* save updated matrix and it's conjugate transpose */
@@ -473,7 +475,7 @@ int update_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **
 int init_su3(Par *par, gsl_matrix_complex **su3) {
     gsl_vector_complex *vec[3], 
                        *tempv;
-    gsl_complex tempz;
+    gsl_complex z_temp;
 
     /* allocating memory for three vectors which will temporarily store the column vectors of the matrices for
      * unitarization */
@@ -512,18 +514,20 @@ int init_su3(Par *par, gsl_matrix_complex **su3) {
             }
         }
         /* unitarize the matrix (Gram-Schmidt) */
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 2; i++) {
             gsl_matrix_complex_get_col(vec[i], su3[n], i);
             for (int j = 0; j < i; j++) {   /* i,j each go over the column vectors of the matrix */
-                gsl_blas_zdotu(vec[j], vec[i], &tempz);
+                gsl_blas_zdotu(vec[j], vec[i], &z_temp);
                 gsl_vector_complex_memcpy(tempv, vec[j]);
-                gsl_vector_complex_scale(tempv, tempz);
+                gsl_vector_complex_scale(tempv, z_temp);
                 gsl_vector_complex_sub(vec[i], tempv);
             }
             gsl_blas_zdscal(1. / gsl_blas_dznrm2(vec[i]), vec[i]);  /* normalization */
             gsl_matrix_complex_set_col(su3[n], i, vec[i]);
         }
-        /* for (int j = 0; j < 3; j++) {    cross product 
+
+        /* cross product: */
+        for (int j = 0; j < 3; j++) {
             gsl_vector_complex_set(
                 vec[2], 
                 j, 
@@ -538,7 +542,12 @@ int init_su3(Par *par, gsl_matrix_complex **su3) {
                     )
                 )
             );
-        } */
+        }
+        /* DEBUG: */
+        gsl_blas_zdotu(vec[0], vec[1], &z_temp);
+        printf("DEBUG: dot product(1, 2) = %6.1e + i%6.1e\n", GSL_REAL(z_temp), GSL_IMAG(z_temp));
+        gsl_blas_zdotu(vec[0], vec[2], &z_temp);
+        printf("DEBUG: dot product(1, 3) = %6.1e + i%6.1e\n", GSL_REAL(z_temp), GSL_IMAG(z_temp));
     }
 
     /* create inverse matrices by getting the conjugate transpose */
@@ -550,14 +559,18 @@ int init_su3(Par *par, gsl_matrix_complex **su3) {
         gsl_vector_complex_free(vec[i]);
     gsl_vector_complex_free(tempv);
 
-    /* debugging: */
-    const gsl_complex z_zero = gsl_complex_rect(0., 0.), z_one = gsl_complex_rect(1., 0.);
-    gsl_matrix_complex *m_temp = NULL;
+    /* DEBUG:  
+    gsl_complex z_temp;
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
+                    z_one = gsl_complex_rect(1., 0.);
+    gsl_matrix_complex *m_temp = NULL, 
+                       *m_temp_0 = NULL;
     gsl_permutation *p = NULL;
     
     m_temp = gsl_matrix_complex_alloc(3, 3);
+    m_temp_0 = gsl_matrix_complex_alloc(3, 3);
     p = gsl_permutation_alloc(3);
-    if ((m_temp == NULL) || (p == NULL)) {
+    if ((m_temp == NULL) || (p == NULL) || (m_temp_0 == NULL)) {
         printf("Error: Failed allocating memory for a temporary matrix and/or permutation used in the debugging process. Exiting...\n");
         return 1;
     }
@@ -571,7 +584,6 @@ int init_su3(Par *par, gsl_matrix_complex **su3) {
         printf("DEBUG: det = %4.3f + %4.3fi\n", GSL_REAL(det), GSL_IMAG(det));
     }
     for (int i = 0; i < par->n_su3 / 2; i++) {
-        gsl_complex z_temp;
         gsl_blas_zgemm(
             CblasNoTrans, 
             CblasNoTrans, 
@@ -590,10 +602,28 @@ int init_su3(Par *par, gsl_matrix_complex **su3) {
             printf("\n");
         }
     }
+    
+    gsl_matrix_complex_memcpy(m_temp, su3[(int)(par->n_su3 * gsl_rng_uniform(par->ran_gen))]);
+    for (int i = 0; i < par->n_hits; i++) {
+        gsl_blas_zgemm(
+            CblasNoTrans, 
+            CblasNoTrans, 
+            z_one, 
+            su3[(int)(par->n_su3 * gsl_rng_uniform(par->ran_gen))],
+            m_temp, 
+            z_zero, 
+            m_temp_0
+        );
+        gsl_matrix_complex_memcpy(m_temp, m_temp_0);
+    }
+    z_temp = z_zero;
+    for (int i = 0; i < 3; i++) 
+        z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_0, i, i));
+    printf("DEBUG: Trace = %e\n", GSL_REAL(z_temp));
 
     gsl_matrix_complex_free(m_temp);
-    gsl_permutation_free(p);
-    
+    gsl_matrix_complex_free(m_temp_0);
+    gsl_permutation_free(p); */
 
     return 0;
 }
@@ -641,7 +671,7 @@ void init_lattice(Par *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
 
 
 
-int sim(Par *par, gsl_matrix_complex **lattice) {
+int simulate(Par *par, gsl_matrix_complex **lattice) {
     double results[2], 
            acceptance = 0.;
     gsl_matrix_complex **su3;
@@ -715,6 +745,11 @@ int sim(Par *par, gsl_matrix_complex **lattice) {
                 free(su3);
                 return 1;
             }
+            /* DEBUG: 
+            gsl_complex z_temp = gsl_complex_rect(0., 0.);
+            for (int k = 0; k < 3; k++) 
+                z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(lattice[ind(4, 4, 4, 4, 0, par->L)], k, k));
+            printf("DEBUG: ReTr = %7.2e\n", GSL_REAL(z_temp)); */
         }
         if (measure(par, results, lattice)) {
             for (int j = 0; j < par->n_su3; j++) 
@@ -766,11 +801,12 @@ int read_args(Par *par, char *arg) {
             printf("Error: Failed allocating memory for the random number generator! Exiting...\n");
             return 1;
         }
-        if (par->seed) gsl_rng_set(par->ran_gen, par->seed);
-        else gsl_rng_set(par->ran_gen, (long)time(NULL));
+        if (!(par->seed)) 
+            par->seed = (long)time(NULL);
+        gsl_rng_set(par->ran_gen, par->seed);
         
         /* running the simulation with already given parameters */
-        success = !sim(par, lattice);
+        success = !simulate(par, lattice);
         
         gsl_rng_free(par->ran_gen);
         
