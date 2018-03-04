@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS  = -g -Wall -pedantic # -O4 -fsanitize=address 
+CFLAGS  = -g -O3 -Wall -pedantic # -fsanitize=address
 LOADLIBES = -lm -lgsl -lgslcblas # -lasan <-- has to be the first flag
 VPATH = ./source
 

@@ -1,6 +1,6 @@
 #include <gsl/gsl_rng.h>
 
-typedef struct Par {
+typedef struct PAR {
     int n_configs;
     int L;
     long int seed;
@@ -12,4 +12,4 @@ typedef struct Par {
     int n_therm;
     int n_corr;
     double beta;
-} Par;
+} PAR;
