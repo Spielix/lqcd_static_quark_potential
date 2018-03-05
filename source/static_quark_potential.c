@@ -868,6 +868,24 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         }
     }
 
+    
+    printf(
+        "Starting Lattice-QCD simulation with parameters: L=%d, seed=%ld, eps=%4.3f, beta=%4.3f\n", 
+        par->L, 
+        par->seed,
+        par->eps,
+        par->beta
+    );
+
+    /* generate the SU(2) matrices */
+    printf("Generating %d random SU(2)-matrices...", par->n_su2);
+    if (init_su2(par, su2)) {
+        for (int i = 0; i < par->n_su2; i++)
+            gsl_matrix_complex_free(su2[i]);
+         return 1;
+    }
+    printf("\n");
+
     /* DEBUG: */
     gsl_complex z_temp;
     const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
@@ -939,24 +957,6 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     gsl_permutation_free(p);
     /* DEBUG_END */
 
-    printf(
-        "Starting Lattice-QCD simulation with parameters: L=%d, seed=%ld, eps=%4.3f, beta=%4.3f\n", 
-        par->L, 
-        par->seed,
-        par->eps,
-        par->beta
-    );
-
-    /* generate the SU(2) matrices */
-    printf("Generating %d random SU(2)-matrices...", par->n_su2);
-    if (init_su2(par, su2)) {
-        for (int i = 0; i < par->n_su2; i++)
-            gsl_matrix_complex_free(su2[i]);
-         return 1;
-    }
-    printf("\n");
-
-    
 
     /* initialize all links in the lattice */
     printf("Initializing %d x %d x %d x %d lattice...", par->L, par->L, par->L, par->L);
