@@ -1,3 +1,6 @@
+#ifndef STATIC_QUARK_POTENTIAL_H__
+#define STATIC_QUARK_POTENTIAL_H__
+
 #include <gsl/gsl_rng.h>
 
 typedef struct PAR {
@@ -13,3 +16,5 @@ typedef struct PAR {
     int n_corr;
     double beta;
 } PAR;
+
+#endif
