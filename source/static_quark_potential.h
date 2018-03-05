@@ -30,6 +30,7 @@ typedef struct PAR {
     int n_therm;
     int n_corr;
     double beta;
+    gsl_matrix_complex *m_temp_1;
 } PAR;
 
 

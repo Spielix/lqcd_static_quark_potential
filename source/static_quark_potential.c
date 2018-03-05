@@ -70,6 +70,38 @@ void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_compl
     }
 } */
 
+
+/* this function calculates the matrix-product of three matrices and -->ADDs<-- the result onto the */
+void psl_matrix_complex_product_3_add(
+    PAR *par,
+    const gsl_matrix_complex *matrix_1, 
+    const gsl_matrix_complex *matrix_2, 
+    const gsl_matrix_complex *matrix_3, 
+    gsl_matrix_complex *m_sum
+) {
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
+                    z_one = gsl_complex_rect(1., 0.);
+
+    gsl_blas_zgemm(
+        CblasNoTrans, 
+        CblasNoTrans, 
+        z_one, 
+        matrix_1, 
+        matrix_2, 
+        z_zero, 
+        par->m_temp_1
+    );
+    gsl_blas_zgemm(
+        CblasNoTrans, 
+        CblasNoTrans, 
+        z_one, 
+        par->m_temp_1, 
+        matrix_3, 
+        z_one, 
+        m_sum
+    );
+}
+
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
     gsl_complex z_temp;
     gsl_vector_complex_view vec[2];
@@ -842,7 +874,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         return 1;
     }
     for (int i = 0; i < par->n_su3; i++) {
-        su3[i] = gsl_matrix_complex_alloc(2, 2);
+        su3[i] = gsl_matrix_complex_calloc(2, 2);
         if (su3[i] == NULL) {
             printf("Error: failed allocating memory for su3 matrices. Exiting...\n");
             for (int j = 0; j < i; j++) 
@@ -1114,7 +1146,7 @@ int main(int argc, char *argv[])
      }
 
     
-    /* initialize simulation parameters with statndard values */
+    /* initialize simulation parameters with standard values */
     par->L = 0;
     par->seed = 0;
     par->n_configs = 10;
@@ -1125,10 +1157,18 @@ int main(int argc, char *argv[])
     par->n_therm = 500;
     par->n_corr = 50;
     par->beta = 0.;
+
+    par->m_temp_1 = gsl_matrix_complex_calloc(2, 2);
+    if (par->m_temp_1 == NULL) {
+        printf("Error: Failed allocating memory for matrix-workspace. Exiting...\n");
+        free(par);
+        exit(EXIT_FAILURE);
+    }
   
     if (argc == 1) {
         printf("Usage: %s L=16 nconfigs=100 run\n", argv[0]);
         printf("Optional arguments (with defaults) L=%d seed=%ld", par->L, par->seed);
+        gsl_matrix_complex_free(par->m_temp_1);
         free(par);
         exit(EXIT_SUCCESS);
     }
@@ -1136,10 +1176,12 @@ int main(int argc, char *argv[])
     /* read_args interprets the arguments given to the program and starts it when "run" appears */
     for (int iarg = 1; iarg < argc; iarg++)
         if (read_args(par, argv[iarg])) {
+            gsl_matrix_complex_free(par->m_temp_1);
             free(par);
             exit(EXIT_FAILURE);
         }
 
+    gsl_matrix_complex_free(par->m_temp_1);
     free(par);
     exit(EXIT_SUCCESS);
 }
