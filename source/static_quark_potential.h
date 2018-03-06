@@ -24,7 +24,7 @@ typedef struct PAR {
     long int seed;
     gsl_rng_type *gen_type;
     gsl_rng *ran_gen;
-    int n_su3;
+    int n_su2;
     double eps;
     int n_hits;
     int n_therm;
