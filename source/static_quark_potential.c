@@ -1191,7 +1191,7 @@ int read_args(PAR *par, char *arg) {
     return 1;
 }
 
-
+#ifdef MAIN_STATIC__C
 int main(int argc, char *argv[])
 {
     PAR *par = NULL;
@@ -1242,3 +1242,4 @@ int main(int argc, char *argv[])
     free(par);
     exit(EXIT_SUCCESS);
 }
+#endif
