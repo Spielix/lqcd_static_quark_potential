@@ -35,8 +35,6 @@ typedef struct PAR {
 
 
 int init_su2(PAR *par, gsl_matrix_complex **su2);
-static inline int ind(int i, int j, int k, int l, int dir, int le);
-static inline int periodic_ind(int i, int j, int k, int l, int dir, int le);
 void psl_matrix_complex_dagger(gsl_matrix_complex *m);
 void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_complex *src);
 void psl_matrix_complex_product_3_add(PAR *par,const gsl_matrix_complex *matrix_1, const gsl_matrix_complex *matrix_2, const gsl_matrix_complex *matrix_3, gsl_matrix_complex *m_sum);

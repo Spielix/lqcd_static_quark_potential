@@ -5,7 +5,7 @@ VPATH = ./source
 
 #INCLUDES = ranlxs.h
 
-OBJS = static_quark_potential.o
+OBJS = static_quark_potential.o rand_su2.o
 
 static_quark_potential: ${OBJS}
 

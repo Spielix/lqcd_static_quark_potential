@@ -1,5 +1,63 @@
 #include "static_quark_potential.h"
 
+
+static inline int ind(int i, int j, int k, int l, int dir, int le);
+static inline int periodic_ind(int i, int j, int k, int l, int dir, int le);
+
+
+#ifndef MAIN_STATIC__C
+int main(int argc, char *argv[])
+{
+    PAR *par = NULL;
+    /* allocate memory for simulation parameters */
+     par = malloc(sizeof(PAR));
+     if (par == NULL) {
+        printf("Error: Failed allocating memory for simulation parameters. Exiting...\n");
+        exit(EXIT_FAILURE);
+     }
+
+    
+    /* initialize simulation parameters with standard values */
+    par->L = 0;
+    par->seed = 0;
+    par->n_configs = 10;
+    par->gen_type = (gsl_rng_type *)gsl_rng_ranlxs0;
+    par->n_su2 = 100;
+    par->eps = 1.;
+    par->n_hits = 10;
+    par->n_therm = 500;
+    par->n_corr = 50;
+    par->beta = 0.;
+
+    par->m_workspace = gsl_matrix_complex_calloc(2, 2);
+    if (par->m_workspace == NULL) {
+        printf("Error: Failed allocating memory for matrix-workspace. Exiting...\n");
+        free(par);
+        exit(EXIT_FAILURE);
+    }
+  
+    if (argc == 1) {
+        printf("Usage: %s L=16 nconfigs=100 run\n", argv[0]);
+        printf("Optional arguments (with defaults) L=%d seed=%ld", par->L, par->seed);
+        gsl_matrix_complex_free(par->m_workspace);
+        free(par);
+        exit(EXIT_SUCCESS);
+    }
+    
+    /* read_args interprets the arguments given to the program and starts it when "run" appears */
+    for (int iarg = 1; iarg < argc; iarg++)
+        if (read_args(par, argv[iarg])) {
+            gsl_matrix_complex_free(par->m_workspace);
+            free(par);
+            exit(EXIT_FAILURE);
+        }
+
+    gsl_matrix_complex_free(par->m_workspace);
+    free(par);
+    exit(EXIT_SUCCESS);
+}
+#endif
+
 /* calculate the position of a specific link in the array */
 static inline int ind(int i, int j, int k, int l, int dir, int le) {
     return (((le * i + j) * le + k) * le + l) * le + dir;
@@ -1154,55 +1212,4 @@ int read_args(PAR *par, char *arg) {
     return 1;
 }
 
-#ifdef MAIN_STATIC__C
-int main(int argc, char *argv[])
-{
-    PAR *par = NULL;
-    /* allocate memory for simulation parameters */
-     par = malloc(sizeof(PAR));
-     if (par == NULL) {
-        printf("Error: Failed allocating memory for simulation parameters. Exiting...\n");
-        exit(EXIT_FAILURE);
-     }
 
-    
-    /* initialize simulation parameters with standard values */
-    par->L = 0;
-    par->seed = 0;
-    par->n_configs = 10;
-    par->gen_type = (gsl_rng_type *)gsl_rng_ranlxs0;
-    par->n_su2 = 100;
-    par->eps = 1.;
-    par->n_hits = 10;
-    par->n_therm = 500;
-    par->n_corr = 50;
-    par->beta = 0.;
-
-    par->m_workspace = gsl_matrix_complex_calloc(2, 2);
-    if (par->m_workspace == NULL) {
-        printf("Error: Failed allocating memory for matrix-workspace. Exiting...\n");
-        free(par);
-        exit(EXIT_FAILURE);
-    }
-  
-    if (argc == 1) {
-        printf("Usage: %s L=16 nconfigs=100 run\n", argv[0]);
-        printf("Optional arguments (with defaults) L=%d seed=%ld", par->L, par->seed);
-        gsl_matrix_complex_free(par->m_workspace);
-        free(par);
-        exit(EXIT_SUCCESS);
-    }
-    
-    /* read_args interprets the arguments given to the program and starts it when "run" appears */
-    for (int iarg = 1; iarg < argc; iarg++)
-        if (read_args(par, argv[iarg])) {
-            gsl_matrix_complex_free(par->m_workspace);
-            free(par);
-            exit(EXIT_FAILURE);
-        }
-
-    gsl_matrix_complex_free(par->m_workspace);
-    free(par);
-    exit(EXIT_SUCCESS);
-}
-#endif
