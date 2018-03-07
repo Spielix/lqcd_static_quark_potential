@@ -40,7 +40,8 @@ void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_compl
 void psl_matrix_complex_product_3_add(PAR *par,const gsl_matrix_complex *matrix_1, const gsl_matrix_complex *matrix_2, const gsl_matrix_complex *matrix_3, gsl_matrix_complex *m_sum);
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
 int measure(PAR *par, double *results, gsl_matrix_complex **lattice);
-int measure_action(PAR *par, gsl_matrix_complex **lattice, double *action);
+int measure_aa_a2a(PAR *par, double *results, gsl_matrix_complex **lattice);
+int measure_action_l(PAR *par, gsl_matrix_complex **lattice, double *action);
 int measure_action_r(PAR *par, gsl_matrix_complex **lattice, double *action);
 int unitarize_lattice(PAR *par, gsl_matrix_complex **lattice);
 int update_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **su3, double * acceptance);
@@ -50,5 +51,6 @@ int simulate(PAR *par, gsl_matrix_complex **lattice);
 int read_args(PAR *par, char *arg);
 int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double epsilon);
 double gauge_inv(PAR *par, gsl_matrix_complex **lattice);
+int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice);
 
 #endif

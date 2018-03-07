@@ -58,6 +58,249 @@ int main(int argc, char *argv[])
 }
 #endif
 
+int simulate(PAR *par, gsl_matrix_complex **lattice) {
+    double results[2], 
+           acceptance = 0.;
+    gsl_matrix_complex **su2;
+    
+    /* allocate memory for a specified number of random SU(2) matrices */
+    su2 = malloc(par->n_su2 * sizeof(gsl_matrix_complex *));
+    if (su2 == NULL) {
+        printf("Error: Failed allocating memory for array of SU(3)-matrix addresses. Exiting...\n");
+        return 1;
+    }
+    for (int i = 0; i < par->n_su2; i++) {
+        su2[i] = gsl_matrix_complex_calloc(2, 2);
+        if (su2[i] == NULL) {
+            printf("Error: failed allocating memory for su2 matrices. Exiting...\n");
+            for (int j = 0; j < i; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+    }
+
+    
+    printf(
+        "Starting Lattice-QCD simulation with parameters: L=%d, seed=%ld, eps=%4.3f, beta=%4.3f\n", 
+        par->L, 
+        par->seed,
+        par->eps,
+        par->beta
+    );
+
+    /* generate the SU(2) matrices */
+    printf("Generating %d random SU(2)-matrices...", par->n_su2);
+    if (init_su2(par, su2)) {
+        for (int i = 0; i < par->n_su2; i++)
+            gsl_matrix_complex_free(su2[i]);
+         return 1;
+    }
+    printf("\n");
+
+    /* DEBUG: 
+    gsl_complex z_temp;
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
+                    z_one = gsl_complex_rect(1., 0.);
+    gsl_matrix_complex *m_temp = NULL, 
+                       *m_temp_0 = NULL;
+    gsl_permutation *p = NULL;
+    
+    m_temp = gsl_matrix_complex_alloc(2, 2);
+    m_temp_0 = gsl_matrix_complex_alloc(2, 2);
+    p = gsl_permutation_alloc(2);
+    for (int i = 0; i < par->n_su2 / 2; i++) {
+        int signum;
+        gsl_complex det;
+        
+        gsl_matrix_complex_memcpy(m_temp, su2[i]);
+        gsl_linalg_complex_LU_decomp(m_temp, p, &signum);
+        det = gsl_linalg_complex_LU_det(m_temp, signum);
+        printf("DEBUG: det = %4.3f + %4.3fi\n", GSL_REAL(det), GSL_IMAG(det));
+        printf("DEBUG: abs(det) = %4.3f\n", gsl_complex_abs(det));
+    }
+    for (int j = 0; j < 2; j++) {
+        for (int k = 0; k < 2; k++) {
+            z_temp = gsl_matrix_complex_get(su2[5], j, k);
+            printf("%3.2f+%3.2fi\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
+        }
+        printf("\n");
+    }
+    for (int i = 0; i < par->n_su2 / 2; i++) {
+        gsl_blas_zgemm(
+            CblasNoTrans, 
+            CblasNoTrans, 
+            z_one, 
+            su2[i], 
+            su2[i + par->n_su2 / 2], 
+            z_zero,
+            m_temp
+        );
+        printf("DEBUG:\n");
+        for (int j = 0; j < 2; j++) {
+            for (int k = 0; k < 2; k++) {
+                z_temp = gsl_matrix_complex_get(m_temp, j, k);
+                printf("%3.2f+%3.2fi\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
+            }
+            printf("\n");
+        }
+    }
+    
+    gsl_matrix_complex_memcpy(m_temp, su2[(int)(par->n_su2 * gsl_rng_uniform(par->ran_gen))]);
+    for (int i = 0; i < par->n_hits; i++) {
+        gsl_blas_zgemm(
+            CblasNoTrans, 
+            CblasNoTrans, 
+            z_one, 
+            su2[(int)(par->n_su2 * gsl_rng_uniform(par->ran_gen))],
+            m_temp, 
+            z_zero, 
+            m_temp_0
+        );
+        gsl_matrix_complex_memcpy(m_temp, m_temp_0);
+    }
+    z_temp = z_zero;
+    for (int i = 0; i < 2; i++) 
+        z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_0, i, i));
+    printf("DEBUG: Trace = %e\n", GSL_REAL(z_temp)); 
+    gsl_matrix_complex_free(m_temp);
+    gsl_matrix_complex_free(m_temp_0);
+    gsl_permutation_free(p);
+     DEBUG_END */
+
+
+    /* initialize all links in the lattice */
+    printf("Initializing %d x %d x %d x %d lattice...", par->L, par->L, par->L, par->L);
+    init_lattice(par, lattice, su2);
+    printf("\n");
+    
+    /* thermalize the lattice */
+    printf("Thermalizing (%d sweeps)...", par->n_therm);
+    for (int i = 0; i < par->n_therm; i++) {
+        if(update_lattice(par, lattice, su2, &acceptance)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+        if (unitarize_lattice(par, lattice)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+    }
+    printf("\n");
+    acceptance /= (double)(par->n_therm * par->L * par->L * par->L * par->L * 4 * par->n_hits);
+    printf("Thermalization-acceptance: %7.2e\n", acceptance);
+    acceptance = 0.;
+
+    /* take measurements after every n_corr-th update-sweep */
+    printf(
+        "Taking measurements of %d configurations(n_corr=%d, n_hits=%d):\na x a\ta x 2a\n",
+        par->n_configs, 
+        par->n_corr, 
+        par->n_hits
+    );
+    for (int i = 0; i < par->n_configs; i++) {
+        for (int j = 0; j < par->n_corr; j++) {
+            if(update_lattice(par, lattice, su2, &acceptance)) {
+                for (int j = 0; j < par->n_su2; j++) 
+                    gsl_matrix_complex_free(su2[j]);
+                free(su2);
+                return 1;
+            }
+            if (unitarize_lattice(par, lattice)) {
+                for (int j = 0; j < par->n_su2; j++) 
+                    gsl_matrix_complex_free(su2[j]);
+                free(su2);
+                return 1;
+            }
+
+            /* DEBUG: print out ReTr of some random link on the lattice / print out the matric product of a
+             * link and his conjugate transpose
+            gsl_complex z_temp = gsl_complex_rect(0., 0.);
+            gsl_matrix_complex *m_temp = NULL;
+            m_temp = gsl_matrix_complex_alloc(3, 3);
+            for (int k = 0; k < 3; k++) 
+                z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(lattice[ind(4, 4, 4, 4, 0, par->L)], k, k));
+            printf("DEBUG: ReTr = %7.2e\n", GSL_REAL(z_temp)); 
+            gsl_blas_zgemm(
+                CblasNoTrans, 
+                CblasNoTrans, 
+                gsl_complex_rect(1., 0.),
+                lattice[ind(3, 3, 3, 3, 0, par->L)], 
+                lattice[ind(4, 3, 3, 3, 4, par->L)], 
+                gsl_complex_rect(0., 0.),
+                m_temp
+            );
+            for (int k = 0; k < 3; k++) {
+                for (int l = 0; l < 3; l++) {
+                    z_temp = gsl_matrix_complex_get(m_temp, k, l);
+                    printf("%3.2f+%3.2f\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
+                }
+                printf("\n");
+            }
+            gsl_matrix_complex_free(m_temp);
+            */
+        }
+        /* DEBUG: measure the action of the lattice with different direction in each Wilson-loop
+        double action_1, action_2;
+        if (measure_action_r(par, lattice, &action_1)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+        if (measure_action_l(par, lattice, &action_2)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+        printf("DEBUG: action_l = %7.2g\nDEBUG: action_r = %7.2g\n", action_1, action_2);
+        DEBUG END */
+
+        if (measure_aa_a2a(par, results, lattice)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+        printf("%3.2f\t%3.2f\n", results[0], results[1]);
+        /* printf("%g\n", gauge_inv(par, lattice)); */
+
+        /* DEBUG: gauge transform the lattice and look at the effect on measurements */
+        double action;
+        measure_action_r(par, lattice, &action);
+        printf("action = %7.2e\n", action);
+        if (gauge_transform_lattice(par, lattice)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+        if (measure_aa_a2a(par, results, lattice)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+        printf("%3.2f\t%3.2f\t<--gauge transformed\n", results[0], results[1]);
+        measure_action_r(par, lattice, &action);
+        printf("action = %7.2e\n", action);
+        /* DEBUG END */
+    }
+    acceptance /= (double)(par->n_configs * par->n_corr * par->L * par->L * par->L * par->L * 4 * par->n_hits);
+    printf("Acceptance: %7.2e\n", acceptance);
+    
+    for (int i = 0; i < par->n_su2; i++)
+        gsl_matrix_complex_free(su2[i]);
+    free(su2);
+
+    return 0;
+}
+
 /* calculate the position of a specific link in the array */
 static inline int ind(int i, int j, int k, int l, int dir, int le) {
     return (((le * i + j) * le + k) * le + l) * 8 + dir;
@@ -956,228 +1199,6 @@ void init_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
             }
         }
     }
-}
-
-
-
-int simulate(PAR *par, gsl_matrix_complex **lattice) {
-    double results[2], 
-           acceptance = 0.;
-    gsl_matrix_complex **su2;
-    
-    /* allocate memory for a specified number of random SU(2) matrices */
-    su2 = malloc(par->n_su2 * sizeof(gsl_matrix_complex *));
-    if (su2 == NULL) {
-        printf("Error: Failed allocating memory for array of SU(3)-matrix addresses. Exiting...\n");
-        return 1;
-    }
-    for (int i = 0; i < par->n_su2; i++) {
-        su2[i] = gsl_matrix_complex_calloc(2, 2);
-        if (su2[i] == NULL) {
-            printf("Error: failed allocating memory for su2 matrices. Exiting...\n");
-            for (int j = 0; j < i; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            return 1;
-        }
-    }
-
-    
-    printf(
-        "Starting Lattice-QCD simulation with parameters: L=%d, seed=%ld, eps=%4.3f, beta=%4.3f\n", 
-        par->L, 
-        par->seed,
-        par->eps,
-        par->beta
-    );
-
-    /* generate the SU(2) matrices */
-    printf("Generating %d random SU(2)-matrices...", par->n_su2);
-    if (init_su2(par, su2)) {
-        for (int i = 0; i < par->n_su2; i++)
-            gsl_matrix_complex_free(su2[i]);
-         return 1;
-    }
-    printf("\n");
-
-    /* DEBUG: 
-    gsl_complex z_temp;
-    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
-                    z_one = gsl_complex_rect(1., 0.);
-    gsl_matrix_complex *m_temp = NULL, 
-                       *m_temp_0 = NULL;
-    gsl_permutation *p = NULL;
-    
-    m_temp = gsl_matrix_complex_alloc(2, 2);
-    m_temp_0 = gsl_matrix_complex_alloc(2, 2);
-    p = gsl_permutation_alloc(2);
-    for (int i = 0; i < par->n_su2 / 2; i++) {
-        int signum;
-        gsl_complex det;
-        
-        gsl_matrix_complex_memcpy(m_temp, su2[i]);
-        gsl_linalg_complex_LU_decomp(m_temp, p, &signum);
-        det = gsl_linalg_complex_LU_det(m_temp, signum);
-        printf("DEBUG: det = %4.3f + %4.3fi\n", GSL_REAL(det), GSL_IMAG(det));
-        printf("DEBUG: abs(det) = %4.3f\n", gsl_complex_abs(det));
-    }
-    for (int j = 0; j < 2; j++) {
-        for (int k = 0; k < 2; k++) {
-            z_temp = gsl_matrix_complex_get(su2[5], j, k);
-            printf("%3.2f+%3.2fi\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
-        }
-        printf("\n");
-    }
-    for (int i = 0; i < par->n_su2 / 2; i++) {
-        gsl_blas_zgemm(
-            CblasNoTrans, 
-            CblasNoTrans, 
-            z_one, 
-            su2[i], 
-            su2[i + par->n_su2 / 2], 
-            z_zero,
-            m_temp
-        );
-        printf("DEBUG:\n");
-        for (int j = 0; j < 2; j++) {
-            for (int k = 0; k < 2; k++) {
-                z_temp = gsl_matrix_complex_get(m_temp, j, k);
-                printf("%3.2f+%3.2fi\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
-            }
-            printf("\n");
-        }
-    }
-    
-    gsl_matrix_complex_memcpy(m_temp, su2[(int)(par->n_su2 * gsl_rng_uniform(par->ran_gen))]);
-    for (int i = 0; i < par->n_hits; i++) {
-        gsl_blas_zgemm(
-            CblasNoTrans, 
-            CblasNoTrans, 
-            z_one, 
-            su2[(int)(par->n_su2 * gsl_rng_uniform(par->ran_gen))],
-            m_temp, 
-            z_zero, 
-            m_temp_0
-        );
-        gsl_matrix_complex_memcpy(m_temp, m_temp_0);
-    }
-    z_temp = z_zero;
-    for (int i = 0; i < 2; i++) 
-        z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_0, i, i));
-    printf("DEBUG: Trace = %e\n", GSL_REAL(z_temp)); 
-    gsl_matrix_complex_free(m_temp);
-    gsl_matrix_complex_free(m_temp_0);
-    gsl_permutation_free(p);
-     DEBUG_END */
-
-
-    /* initialize all links in the lattice */
-    printf("Initializing %d x %d x %d x %d lattice...", par->L, par->L, par->L, par->L);
-    init_lattice(par, lattice, su2);
-    printf("\n");
-    
-    /* thermalize the lattice */
-    printf("Thermalizing (%d sweeps)...", par->n_therm);
-    for (int i = 0; i < par->n_therm; i++) {
-        if(update_lattice(par, lattice, su2, &acceptance)) {
-            for (int j = 0; j < par->n_su2; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            return 1;
-        }
-        if (unitarize_lattice(par, lattice)) {
-            for (int j = 0; j < par->n_su2; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            return 1;
-        }
-    }
-    printf("\n");
-    acceptance /= (double)(par->n_therm * par->L * par->L * par->L * par->L * 4 * par->n_hits);
-    printf("Thermalization-acceptance: %7.2e\n", acceptance);
-    acceptance = 0.;
-
-    /* take measurements after every n_corr-th update-sweep */
-    printf(
-        "Taking measurements of %d configurations(n_corr=%d, n_hits=%d):\na x a\ta x 2a\n",
-        par->n_configs, 
-        par->n_corr, 
-        par->n_hits
-    );
-    for (int i = 0; i < par->n_configs; i++) {
-        for (int j = 0; j < par->n_corr; j++) {
-            if(update_lattice(par, lattice, su2, &acceptance)) {
-                for (int j = 0; j < par->n_su2; j++) 
-                    gsl_matrix_complex_free(su2[j]);
-                free(su2);
-                return 1;
-            }
-            if (unitarize_lattice(par, lattice)) {
-                for (int j = 0; j < par->n_su2; j++) 
-                    gsl_matrix_complex_free(su2[j]);
-                free(su2);
-                return 1;
-            }
-
-            /* DEBUG: 
-            gsl_complex z_temp = gsl_complex_rect(0., 0.);
-            gsl_matrix_complex *m_temp = NULL;
-            m_temp = gsl_matrix_complex_alloc(3, 3);
-            for (int k = 0; k < 3; k++) 
-                z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(lattice[ind(4, 4, 4, 4, 0, par->L)], k, k));
-            printf("DEBUG: ReTr = %7.2e\n", GSL_REAL(z_temp)); 
-            gsl_blas_zgemm(
-                CblasNoTrans, 
-                CblasNoTrans, 
-                gsl_complex_rect(1., 0.),
-                lattice[ind(3, 3, 3, 3, 0, par->L)], 
-                lattice[ind(4, 3, 3, 3, 4, par->L)], 
-                gsl_complex_rect(0., 0.),
-                m_temp
-            );
-            for (int k = 0; k < 3; k++) {
-                for (int l = 0; l < 3; l++) {
-                    z_temp = gsl_matrix_complex_get(m_temp, k, l);
-                    printf("%3.2f+%3.2f\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
-                }
-                printf("\n");
-            }
-            gsl_matrix_complex_free(m_temp);
-            */
-        }
-        /* DEBGUG:
-        double action_1, action_2;
-        if (measure_action_r(par, lattice, &action_1)) {
-            for (int j = 0; j < par->n_su2; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            return 1;
-        }
-        if (measure_action_l(par, lattice, &action_2)) {
-            for (int j = 0; j < par->n_su2; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            return 1;
-        }
-        printf("DEBUG: action_l = %7.2g\nDEBUG: action_r = %7.2g\n", action_1, action_2); */
-
-        if (measure_aa_a2a(par, results, lattice)) {
-            for (int j = 0; j < par->n_su2; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            return 1;
-        }
-        printf("%7.2e\t%7.2e\n", results[0], results[1]);
-        printf("%g\n", gauge_inv(par, lattice));
-    }
-    acceptance /= (double)(par->n_configs * par->n_corr * par->L * par->L * par->L * par->L * 4 * par->n_hits);
-    printf("Acceptance: %7.2e\n", acceptance);
-    
-    for (int i = 0; i < par->n_su2; i++)
-        gsl_matrix_complex_free(su2[i]);
-    free(su2);
-
-    return 0;
 }
 
 
