@@ -19,7 +19,7 @@ int main(){
     par->n_configs = 10;
     par->gen_type = gsl_rng_ranlxs0;
     par->n_su2 = 20;
-    par->eps = .24;
+    par->eps = 0;
     par->n_hits = 10;
     par->n_therm = 500;
     par->n_corr = 50;
@@ -32,18 +32,28 @@ int main(){
 	}
 	init_su2(par, su2);
 	
-	gsl_matrix_complex *mat_tmp = gsl_matrix_complex_calloc(2,2);
-	gsl_matrix_complex_set(mat_tmp, 0, 0, gsl_complex_rect(4, 0));
-	
-	printf("%i\n", check_su2(mat_tmp, mat_tmp, 1e-5));
-	/*
+	gsl_complex temp;
 	for(int i = 0; i < 2; i++){
 		for(int j = 0; j < 2; j++){
 			temp = gsl_matrix_complex_get(su2[5], i, j);
 			printf("%g + %gi\t", GSL_REAL(temp), GSL_IMAG(temp));
 		}
 		printf("\n");
-	}*/
+	}
+	for(int i = 0; i < 2; i++){
+		for(int j = 0; j < 2; j++){
+			temp = gsl_matrix_complex_get(su2[2], i, j);
+			printf("%g + %gi\t", GSL_REAL(temp), GSL_IMAG(temp));
+		}
+		printf("\n");
+	}
+	for(int i = 0; i < 2; i++){
+		for(int j = 0; j < 2; j++){
+			temp = gsl_matrix_complex_get(su2[8], i, j);
+			printf("%g + %gi\t", GSL_REAL(temp), GSL_IMAG(temp));
+		}
+		printf("\n");
+	}
 	return 0;
  }
  #endif
@@ -133,5 +143,93 @@ int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double eps
 	}
 	double tmp = gsl_complex_abs(gsl_complex_sub(gsl_complex_mul(gsl_matrix_complex_get(matrix,0,0), gsl_matrix_complex_get(matrix,1,1)), gsl_complex_mul(gsl_matrix_complex_get(matrix,1,0), gsl_matrix_complex_get(matrix,0,1))));
 	if(tmp > 1+epsilon) ret++;
+	gsl_matrix_complex_free(unity);
+	gsl_matrix_complex_free(check_unitary);
 	return ret;
+}
+
+static inline int msl_mat_mul(gsl_matrix_complex *A, gsl_matrix_complex *B, gsl_matrix_complex *C){
+	return gsl_blas_zgemm(CblasNoTrans, CblasNoTrans, gsl_complex_rect(1,0), A, B, gsl_complex_rect(0,0), C);
+}
+
+/* calculate the position of a specific link in the array */
+static inline int ind(int i, int j, int k, int l, int dir, int le) {
+    return (((le * i + j) * le + k) * le + l) * 8 + dir;
+}
+
+/* calculate the position of a specific link in the array, while applying periodic boundary conditions to all
+ * coordinates */
+static inline int periodic_ind(int i, int j, int k, int l, int dir, int le) {
+    return (((le * (i & (le - 1)) + (j & (le - 1))) * le + (k & (le - 1))) * le + (l & (le - 1))) * 8 + dir;
+}
+
+double gauge_inv(PAR *par, gsl_matrix_complex **lattice){
+	gsl_matrix_complex **gauge = malloc((par->L*par->L*par->L*par->L*8)*sizeof(gsl_matrix_complex*)), **gauged_lattice = malloc((par->L*par->L*par->L*par->L*8)*sizeof(gsl_matrix_complex*));
+	for(int i = 0; i < par->L*par->L*par->L*par->L*8; i++) gauge[i] = gsl_matrix_complex_calloc(2,2);
+	for(int i = 0; i < par->L*par->L*par->L*par->L*8; i++) {
+		gauged_lattice[i] = gsl_matrix_complex_calloc(2,2);
+		gsl_matrix_complex_memcpy(gauged_lattice[i], lattice[i]);
+	}
+	gsl_matrix_complex **temp = malloc(par->n_su2*sizeof(gsl_matrix_complex*));
+	for(int i = 0; i < par->n_su2; i++){
+		temp[i] = gsl_matrix_complex_calloc(2,2);
+	}
+	init_su2(par, temp);
+	init_lattice(par, gauge, temp);
+	for(int a = 0; a < par->L; a++){
+		for(int b = 0; b < par->L; b++){
+			for(int c = 0; c < par->L; c++){
+				for(int d = 0; d < par->L; d++){
+					for(int dir = 0; dir < 4; dir++){
+						msl_mat_mul(
+							gauge[ind(a, b, c, d, 0, par->L)],
+							gauged_lattice[ind(a, b, c, d, dir, par->L)],
+							par->m_workspace);
+						msl_mat_mul(
+							par->m_workspace,
+							gauge[periodic_ind(
+								a + (dir == 0),
+								b + (dir == 1),
+								c + (dir == 2),
+								d + (dir == 3), 
+								4, par->L)],
+							gauged_lattice[ind(a, b, c, d, dir, par->L)]);
+					}
+				}
+			}
+		}
+	}
+	for (int i = 0; i < par->L; i++) {
+        for (int j = 0; j < par->L; j++) {
+            for (int k = 0; k < par->L; k++) {
+                for (int l = 0; l < par->L; l++) {
+                    for (int dir_dagger = 4; dir_dagger < 8; dir_dagger++) {
+                        psl_matrix_complex_dagger_memcpy(
+                            gauged_lattice[ind(i, j, k, l, dir_dagger, par->L)], 
+                            gauged_lattice[periodic_ind(
+                                i - (dir_dagger == 4), 
+                                j - (dir_dagger == 5), 
+                                k - (dir_dagger == 6), 
+                                l - (dir_dagger == 7), 
+                                dir_dagger - 4, 
+                                par->L
+                            )]
+                        );
+                    }
+                }
+            }
+        }
+	}
+	double action[2] = {0};
+	measure_action_r(par, lattice, action);
+	measure_action_r(par, gauged_lattice, action+1);
+	for(int i = 0; i < par->n_su2; i++){
+		gsl_matrix_complex_free(temp[i]);
+		gsl_matrix_complex_free(gauge[i]);
+		gsl_matrix_complex_free(gauged_lattice[i]);
+	}
+	free(temp);
+	free(gauge);
+	free(gauged_lattice);
+	return fabs(action[0]-action[1]);
 }
