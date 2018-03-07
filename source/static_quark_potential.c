@@ -1168,6 +1168,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             return 1;
         }
         printf("%7.2e\t%7.2e\n", results[0], results[1]);
+        printf("%g\n", gauge_inv(par, lattice));
     }
     acceptance /= (double)(par->n_configs * par->n_corr * par->L * par->L * par->L * par->L * 4 * par->n_hits);
     printf("Acceptance: %7.2e\n", acceptance);

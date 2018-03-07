@@ -41,6 +41,7 @@ void psl_matrix_complex_product_3_add(PAR *par,const gsl_matrix_complex *matrix_
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
 int measure(PAR *par, double *results, gsl_matrix_complex **lattice);
 int measure_action(PAR *par, gsl_matrix_complex **lattice, double *action);
+int measure_action_r(PAR *par, gsl_matrix_complex **lattice, double *action);
 int unitarize_lattice(PAR *par, gsl_matrix_complex **lattice);
 int update_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **su3, double * acceptance);
 int init_su3(PAR *par, gsl_matrix_complex **su3);
@@ -48,5 +49,6 @@ void init_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
 int simulate(PAR *par, gsl_matrix_complex **lattice);
 int read_args(PAR *par, char *arg);
 int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double epsilon);
+double gauge_inv(PAR *par, gsl_matrix_complex **lattice);
 
 #endif
