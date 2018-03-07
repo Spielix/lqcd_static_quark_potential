@@ -38,7 +38,13 @@ typedef struct PAR {
 int init_su2(PAR *par, gsl_matrix_complex **su2);
 void psl_matrix_complex_dagger(gsl_matrix_complex *m);
 void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_complex *src);
-void psl_matrix_complex_product_3_add(PAR *par,const gsl_matrix_complex *matrix_1, const gsl_matrix_complex *matrix_2, const gsl_matrix_complex *matrix_3, gsl_matrix_complex *m_sum);
+void psl_matrix_complex_product_3_add(
+    PAR *par, 
+    const gsl_matrix_complex *matrix_1, 
+    const gsl_matrix_complex *matrix_2, 
+    const gsl_matrix_complex *matrix_3, 
+    gsl_matrix_complex *m_sum
+);
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
 int measure(PAR *par, double *results, gsl_matrix_complex **lattice);
 int measure_aa_a2a(PAR *par, double *results, gsl_matrix_complex **lattice);
@@ -54,5 +60,34 @@ int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double eps
 double gauge_inv(PAR *par, gsl_matrix_complex **lattice);
 int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice);
 void measure_tadpole(PAR *par, gsl_matrix_complex **lattice, double *tadpole_result);
+
+/* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
+ * starting point and save it under m_product*/
+void lattice_line_product(
+    const PAR *par, 
+    gsl_matrix_complex **lattice, 
+    int i_start, 
+    int j_start, 
+    int k_start, 
+    int l_start, 
+    int dir, 
+    int n_matrices, 
+    gsl_matrix_complex *m_product
+);
+
+/* calculates a planar Wilson-loop */
+int lattice_loop_rect(
+    const PAR *par, 
+    gsl_matrix_complex **lattice, 
+    int i_start, 
+    int j_start, 
+    int k_start, 
+    int l_start, 
+    int dir_1, 
+    int dir_2, 
+    int L_1, 
+    int L_2, 
+    double *result
+);
 
 #endif

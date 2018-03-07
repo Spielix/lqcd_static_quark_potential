@@ -363,7 +363,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
                 return 1;
             }
 
-            /* DEBUG: print out ReTr of some random link on the lattice / print out the matric product of a
+            /* DEBUG: print out ReTr of some random link on the lattice / print out the matrix product of a
              * link and his conjugate transpose
             gsl_complex z_temp = gsl_complex_rect(0., 0.);
             gsl_matrix_complex *m_temp = NULL;
@@ -424,14 +424,55 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         /* DEBUG: gauge transform the lattice and look at the effect on measurements 
         double action;
         measure_action_r(par, lattice, &action);
-        printf("action = %7.2e\n", action);
+        printf("action = %7.2e\n", action); */
+        double loop;
+        if (lattice_loop_rect(
+            par, 
+            lattice, 
+            3, 
+            3, 
+            3, 
+            3, 
+            1, 
+            2, 
+            3, 
+            4, 
+            &loop
+        )) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+        printf("DEBUG: loop = %7.2e\n", loop);
         if (gauge_transform_lattice(par, lattice)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
             free(su2);
             return 1;
         }
-        if (measure_aa_a2a(par, results, lattice)) {
+        if (lattice_loop_rect(
+            par, 
+            lattice, 
+            3, 
+            3, 
+            3, 
+            3, 
+            1, 
+            2, 
+            3, 
+            4, 
+            &loop
+        )) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            return 1;
+        }
+        printf("DEBUG: loop = %7.2e\t<--after gauge transf\n", loop);
+        
+
+        /* if (measure_aa_a2a(par, results, lattice)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
             free(su2);
@@ -617,6 +658,132 @@ void psl_matrix_complex_product_6(
         z_zero, 
         m_result
     );
+}
+
+/* calculates a planar Wilson-loop */
+int lattice_loop_rect(
+    const PAR *par, 
+    gsl_matrix_complex **lattice, 
+    int i_start, 
+    int j_start, 
+    int k_start, 
+    int l_start, 
+    int dir_1, 
+    int dir_2, 
+    int L_1, 
+    int L_2, 
+    double *result
+) {
+    gsl_matrix_complex *m_temp = NULL;
+    gsl_complex z_temp = gsl_complex_rect(0., 0.);
+
+    m_temp = gsl_matrix_complex_alloc(2, 2);
+    if (m_temp == NULL) {
+        printf("Error: Failed allocating memory for temporary matrix used for calculating a rectangle loop. Exiting...\n");
+        return 1;
+    }
+
+    gsl_matrix_complex_set_identity(m_temp);
+    lattice_line_product(
+        par, 
+        lattice, 
+        i_start, 
+        j_start, 
+        k_start, 
+        l_start, 
+        dir_1, 
+        L_1, 
+        m_temp
+    );
+    lattice_line_product(
+        par, 
+        lattice, 
+        i_start + L_1 * (dir_1 == 0), 
+        j_start + L_1 * (dir_1 == 1), 
+        k_start + L_1 * (dir_1 == 2), 
+        l_start + L_1 * (dir_1 == 3), 
+        dir_2, 
+        L_2, 
+        m_temp
+    );
+    lattice_line_product(
+        par, 
+        lattice, 
+        i_start + L_1 * (dir_1 == 0) + L_2 * (dir_2 == 0), 
+        j_start + L_1 * (dir_1 == 1) + L_2 * (dir_2 == 1), 
+        k_start + L_1 * (dir_1 == 2) + L_2 * (dir_2 == 2), 
+        l_start + L_1 * (dir_1 == 3) + L_2 * (dir_2 == 3), 
+        dir_1 + 4, 
+        L_1, 
+        m_temp
+    );
+    lattice_line_product(
+        par, 
+        lattice, 
+        i_start + L_2 * (dir_2 == 0), 
+        j_start + L_2 * (dir_2 == 1), 
+        k_start + L_2 * (dir_2 == 2), 
+        l_start + L_2 * (dir_2 == 3), 
+        dir_2 + 4, 
+        L_2, 
+        m_temp
+    );
+
+    for (int m = 0; m < 2; m++) {
+        z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp, m, m));
+    }
+    *result = GSL_REAL(z_temp) / 2.;
+
+    gsl_matrix_complex_free(m_temp);
+
+    return 0;
+}
+
+/* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
+ * starting point and save it under m_product*/
+void lattice_line_product(
+    const PAR *par, 
+    gsl_matrix_complex **lattice, 
+    int i_start, 
+    int j_start, 
+    int k_start, 
+    int l_start, 
+    int dir, 
+    int n_matrices, 
+    gsl_matrix_complex *m_product
+) {
+    int sign, 
+        dir_abs;
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
+                    z_one = gsl_complex_rect(1., 0.);
+    
+    if (dir < 4) { 
+        sign = 1;
+        dir_abs = dir;
+    } else {
+        sign = -1;
+        dir_abs = dir - 4;
+    }
+
+    for (int x = 0; x < n_matrices; x++) {
+        gsl_blas_zgemm(
+            CblasNoTrans, 
+            CblasNoTrans, 
+            z_one, 
+            m_product, 
+            lattice[periodic_ind(
+                i_start + sign * x * (dir_abs == 0), 
+                j_start + sign * x * (dir_abs == 1), 
+                k_start + sign * x * (dir_abs == 2), 
+                l_start + sign * x * (dir_abs == 3), 
+                dir, 
+                par->L
+            )], 
+            z_zero, 
+            par->m_workspace
+        );
+        gsl_matrix_complex_memcpy(m_product, par->m_workspace);
+    }
 }
 
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
