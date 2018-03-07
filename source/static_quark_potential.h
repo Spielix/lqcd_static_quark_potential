@@ -30,6 +30,7 @@ typedef struct PAR {
     int n_therm;
     int n_corr;
     double beta;
+    double tadpole;
     gsl_matrix_complex *m_workspace;
 } PAR;
 
@@ -52,5 +53,6 @@ int read_args(PAR *par, char *arg);
 int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double epsilon);
 double gauge_inv(PAR *par, gsl_matrix_complex **lattice);
 int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice);
+void measure_tadpole(PAR *par, gsl_matrix_complex **lattice, double *tadpole_result);
 
 #endif

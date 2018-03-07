@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
     par->n_therm = 500;
     par->n_corr = 50;
     par->beta = 0.;
+    par->tadpole = 0.;
 
     par->m_workspace = gsl_matrix_complex_calloc(2, 2);
     if (par->m_workspace == NULL) {
@@ -57,6 +58,151 @@ int main(int argc, char *argv[])
     exit(EXIT_SUCCESS);
 }
 #endif
+
+int read_args(PAR *par, char *arg) {
+    static gsl_matrix_complex **lattice = NULL;
+    int success = 1;
+    char *s;
+    
+    if (!strcmp(arg, "run")) {
+        if (!par->L) {
+            printf("Give system size L!\n");
+            return 1;
+        }
+        if (par->beta == 0.) {
+            printf("Give beta!\n");
+            return 1;
+        }
+        if (par->eps == 1.) {
+            printf("Warning: Standard value of epsilon is 1.\n");
+        }
+        /* preparing for the simulation */
+        int num_of_links = par->L * par->L * par->L * par->L * 8;
+        
+        /* initialization of random number generator */
+        par->ran_gen = gsl_rng_alloc(par->gen_type);
+        if (par->ran_gen == NULL) {
+            if (lattice) {
+                for (int i = 0; i < num_of_links; i++)
+                    gsl_matrix_complex_free(lattice[i]);
+                free(lattice);
+            }
+            printf("Error: Failed allocating memory for the random number generator! Exiting...\n");
+            return 1;
+        }
+        if (!(par->seed)) 
+            par->seed = (long)time(NULL);
+        gsl_rng_set(par->ran_gen, par->seed);
+        
+        /* running the simulation with already given parameters */
+        success = !simulate(par, lattice);
+        
+        gsl_rng_free(par->ran_gen);
+        
+        for (int i = 0; i < num_of_links; i++)
+            gsl_matrix_complex_free(lattice[i]);
+        free(lattice);
+
+        return !success;
+    }
+
+    /* interpretation of simulation parameters */
+    s = strchr(arg, '=');
+
+    if (!s) {
+        fprintf(stderr, "Command '%s' not recognized, expected format: '<name>=<value>'. Exiting...\n", arg);
+        return 1;
+    }
+
+    *s++ = '\0';
+
+    if (!strcmp(arg, "L")) {
+        int num_of_links, tempL;
+   
+        /* checking if the given lattice size is a power of 2 */
+        tempL = strtod(s, NULL);
+        if ((tempL > 0) && !(tempL & (tempL - 1))) par->L = tempL;
+        else {
+            fprintf(stderr, "L has to be a power of 2. Exiting...\n");
+            return 1;
+        }
+        
+        /* allocate memory for the lattice (link matrices) */
+        num_of_links = par->L * par->L * par->L * par->L * 8;
+        
+        lattice = realloc(lattice, num_of_links * sizeof(gsl_matrix_complex *));
+        if (lattice == NULL) {
+            printf("Error: Failed allocating memory for the lattice! Exiting...\n");
+            return 1;
+        }
+        for (int i = 0; i < num_of_links; i++) {
+            lattice[i] = gsl_matrix_complex_alloc(2, 2);
+            if (lattice[i] == NULL) {
+                printf("Error: Failed allocating memory for the lattice-matrices! Exiting...\n");
+                for (int j = 0; j < i; j++)
+                    gsl_matrix_complex_free(lattice[i]);
+                free(lattice);
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    if (!strcmp(arg, "seed")) {
+        par->seed = strtol(s, NULL, 0);
+        return 0;
+    }
+    
+    if (!strcmp(arg, "n_configs")) {
+        par->n_configs = strtol(s, NULL, 0);
+        return 0;
+    }
+    
+    if (!strcmp(arg, "n_su2")) {
+        par->n_su2 = strtol(s, NULL, 0);
+        if (par->n_su2 % 2) 
+            par->n_su2 = par->n_su2 + 1;
+        return 0;
+    }
+    
+    if (!strcmp(arg, "eps")) {
+        par->eps = strtod(s, NULL);
+        return 0;
+    }
+
+    if (!strcmp(arg, "beta")) {
+        par->beta = strtod(s, NULL);
+        return 0;
+    }
+
+    if (!strcmp(arg, "n_hits")) {
+        par->n_hits = strtol(s, NULL, 0);
+        return 0;
+    }
+
+    if (!strcmp(arg, "n_therm")) {
+        par->n_therm = strtol(s, NULL, 0);
+        return 0;
+    }
+
+    if (!strcmp(arg, "n_corr")) {
+        par->n_corr = strtol(s, NULL, 0);
+        return 0;
+    }
+
+    if (!strcmp(arg, "tadpole")) {
+        par->tadpole = strtod(s, NULL);
+        return 0;
+    }
+
+/*    if (!strcmp(arg, "gen_type")) {
+        par->gen_type = strtol(s, NULL, 0);
+        return 0;
+    } */
+
+    fprintf(stderr, "No such variable name: '%s'. Exiting...\n", arg);
+    return 1;
+}
 
 int simulate(PAR *par, gsl_matrix_complex **lattice) {
     double results[2], 
@@ -192,7 +338,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     }
     printf("\n");
     acceptance /= (double)(par->n_therm * par->L * par->L * par->L * par->L * 4 * par->n_hits);
-    printf("Thermalization-acceptance: %7.2e\n", acceptance);
+    printf("Thermalization-acceptance: %3.2f\n", acceptance);
     acceptance = 0.;
 
     /* take measurements after every n_corr-th update-sweep */
@@ -268,9 +414,14 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             return 1;
         }
         printf("%3.2f\t%3.2f\n", results[0], results[1]);
+        /* measure tadpole and print out the results
+        double tadpole_result;
+        measure_tadpole(par, lattice, &tadpole_result);
+        printf("u_0 = %3.2f\n", tadpole_result);
+        */
         /* printf("%g\n", gauge_inv(par, lattice)); */
 
-        /* DEBUG: gauge transform the lattice and look at the effect on measurements */
+        /* DEBUG: gauge transform the lattice and look at the effect on measurements 
         double action;
         measure_action_r(par, lattice, &action);
         printf("action = %7.2e\n", action);
@@ -289,10 +440,10 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         printf("%3.2f\t%3.2f\t<--gauge transformed\n", results[0], results[1]);
         measure_action_r(par, lattice, &action);
         printf("action = %7.2e\n", action);
-        /* DEBUG END */
+        DEBUG END */
     }
     acceptance /= (double)(par->n_configs * par->n_corr * par->L * par->L * par->L * par->L * 4 * par->n_hits);
-    printf("Acceptance: %7.2e\n", acceptance);
+    printf("Acceptance: %3.2f\n", acceptance);
     
     for (int i = 0; i < par->n_su2; i++)
         gsl_matrix_complex_free(su2[i]);
@@ -520,6 +671,37 @@ int measure(PAR *par, double *results, gsl_matrix_complex **lattice) {
     return 0;
 }
 
+void measure_tadpole(PAR *par, gsl_matrix_complex **lattice, double *tadpole_result) {
+    const gsl_complex z_zero = gsl_complex_rect(1., 0.);
+    gsl_complex z_temp;
+
+    *tadpole_result = 0.;
+
+    for (int i = 0; i < par->L; i++) {
+        for (int j = 0; j < par->L; j++) {
+            for(int k = 0; k < par->L; k++) {
+                for(int l = 0; l < par->L; l++) {
+                    for (int dir = 0; dir < 4; dir++) {
+                        z_temp = z_zero;
+                        for (int m = 0; m < 2; m++) {
+                            z_temp = gsl_complex_add(
+                                z_temp, 
+                                gsl_matrix_complex_get(
+                                    lattice[ind(i, j, k, l, dir, par->L)], 
+                                    m, 
+                                    m
+                                )
+                            );
+                        }
+                        *tadpole_result += GSL_REAL(z_temp);
+                    }
+                }
+            }
+        }
+    }
+    *tadpole_result /= (double)(2 * par->L * par->L * par->L * par->L * 4);
+}
+
 int measure_aa_a2a(PAR *par, double *results, gsl_matrix_complex **lattice) {
     const gsl_complex z_zero = gsl_complex_rect(0., 0.); 
     gsl_complex z_temp;
@@ -734,7 +916,7 @@ int measure_action_r(PAR *par, gsl_matrix_complex **lattice, double *action) {
         }
     }
     /* factor 1/2 from Plaquette operator and -beta from Wilson action */
-    *action *= -par->beta / 2.; 
+    *action *= -par->beta / 2. / (double)(par->tadpole * par->tadpole * par->tadpole * par->tadpole); 
     return 0;
 }
 
@@ -798,7 +980,7 @@ int measure_action_l(PAR *par, gsl_matrix_complex **lattice, double *action) {
         }
     }
     /* factor 1/2 from Plaquette operator and -beta from Wilson action */
-    *action *= -par->beta / 2.; 
+    *action *= -par->beta / 2. / (double)(par->tadpole * par->tadpole * par->tadpole * par->tadpole); 
     return 0;
 }
 
@@ -965,7 +1147,7 @@ int update_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **
                             z_temp = z_zero;
                             for (int m = 0; m < 2; m++)     /* trace */
                                 z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_3, m, m));
-                            Delta_S = -par->beta * GSL_REAL(z_temp) / 2.;
+                            Delta_S = -par->beta * GSL_REAL(z_temp) / 2. / (double)(par->tadpole * par->tadpole * par->tadpole * par->tadpole);
                             /* accept/reject step */
                             if (Delta_S <= 0.) {
                                 /* save updated matrix and it's conjugate transpose */
@@ -1202,144 +1384,6 @@ void init_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
 }
 
 
-int read_args(PAR *par, char *arg) {
-    static gsl_matrix_complex **lattice = NULL;
-    int success = 1;
-    char *s;
-    
-    if (!strcmp(arg, "run")) {
-        if (!par->L) {
-            printf("Give system size L!\n");
-            return 1;
-        }
-        if (par->beta == 0.) {
-            printf("Give beta!\n");
-            return 1;
-        }
-        if (par->eps == 1.) {
-            printf("Warning: Standard value of epsilon is 1.\n");
-        }
-        /* preparing for the simulation */
-        int num_of_links = par->L * par->L * par->L * par->L * 8;
-        
-        /* initialization of random number generator */
-        par->ran_gen = gsl_rng_alloc(par->gen_type);
-        if (par->ran_gen == NULL) {
-            if (lattice) {
-                for (int i = 0; i < num_of_links; i++)
-                    gsl_matrix_complex_free(lattice[i]);
-                free(lattice);
-            }
-            printf("Error: Failed allocating memory for the random number generator! Exiting...\n");
-            return 1;
-        }
-        if (!(par->seed)) 
-            par->seed = (long)time(NULL);
-        gsl_rng_set(par->ran_gen, par->seed);
-        
-        /* running the simulation with already given parameters */
-        success = !simulate(par, lattice);
-        
-        gsl_rng_free(par->ran_gen);
-        
-        for (int i = 0; i < num_of_links; i++)
-            gsl_matrix_complex_free(lattice[i]);
-        free(lattice);
 
-        return !success;
-    }
-
-    /* interpretation of simulation parameters */
-    s = strchr(arg, '=');
-
-    if (!s) {
-        fprintf(stderr, "Command '%s' not recognized, expected format: '<name>=<value>'. Exiting...\n", arg);
-        return 1;
-    }
-
-    *s++ = '\0';
-
-    if (!strcmp(arg, "L")) {
-        int num_of_links, tempL;
-   
-        /* checking if the given lattice size is a power of 2 */
-        tempL = strtod(s, NULL);
-        if ((tempL > 0) && !(tempL & (tempL - 1))) par->L = tempL;
-        else {
-            fprintf(stderr, "L has to be a power of 2. Exiting...\n");
-            return 1;
-        }
-        
-        /* allocate memory for the lattice (link matrices) */
-        num_of_links = par->L * par->L * par->L * par->L * 8;
-        
-        lattice = realloc(lattice, num_of_links * sizeof(gsl_matrix_complex *));
-        if (lattice == NULL) {
-            printf("Error: Failed allocating memory for the lattice! Exiting...\n");
-            return 1;
-        }
-        for (int i = 0; i < num_of_links; i++) {
-            lattice[i] = gsl_matrix_complex_alloc(2, 2);
-            if (lattice[i] == NULL) {
-                printf("Error: Failed allocating memory for the lattice-matrices! Exiting...\n");
-                for (int j = 0; j < i; j++)
-                    gsl_matrix_complex_free(lattice[i]);
-                free(lattice);
-                return 1;
-            }
-        }
-        return 0;
-    }
-
-    if (!strcmp(arg, "seed")) {
-        par->seed = strtol(s, NULL, 0);
-        return 0;
-    }
-    
-    if (!strcmp(arg, "n_configs")) {
-        par->n_configs = strtol(s, NULL, 0);
-        return 0;
-    }
-    
-    if (!strcmp(arg, "n_su2")) {
-        par->n_su2 = strtol(s, NULL, 0);
-        if (par->n_su2 % 2) 
-            par->n_su2 = par->n_su2 + 1;
-        return 0;
-    }
-    
-    if (!strcmp(arg, "eps")) {
-        par->eps = strtod(s, NULL);
-        return 0;
-    }
-
-    if (!strcmp(arg, "beta")) {
-        par->beta = strtod(s, NULL);
-        return 0;
-    }
-
-    if (!strcmp(arg, "n_hits")) {
-        par->n_hits = strtol(s, NULL, 0);
-        return 0;
-    }
-
-    if (!strcmp(arg, "n_therm")) {
-        par->n_therm = strtol(s, NULL, 0);
-        return 0;
-    }
-
-    if (!strcmp(arg, "n_corr")) {
-        par->n_corr = strtol(s, NULL, 0);
-        return 0;
-    }
-
-/*    if (!strcmp(arg, "gen_type")) {
-        par->gen_type = strtol(s, NULL, 0);
-        return 0;
-    } */
-
-    fprintf(stderr, "No such variable name: '%s'. Exiting...\n", arg);
-    return 1;
-}
 
 

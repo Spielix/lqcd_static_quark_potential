@@ -24,6 +24,7 @@ int main(){
     par->n_therm = 500;
     par->n_corr = 50;
     par->beta = 0.;
+    par->tadpole = 0.;
     par->ran_gen = gsl_rng_alloc(par->gen_type);
     
     gsl_matrix_complex **su2 = malloc(20*sizeof(gsl_matrix_complex*));
