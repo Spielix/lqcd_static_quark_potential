@@ -260,6 +260,24 @@ int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
 }
 
 int measure(PAR *par, double *results, gsl_matrix_complex **lattice) {
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.);
+    
+    for (int i; i < par->L; i++) {
+        for (int j = 0; j < par->L; j++) {
+            for (int k = 0; k < par->L; k++) {
+                for (int l = 0; l < par->L; l++) {
+                    for (int dir_1 = 0; dir_1 < 4; dir_1++) {
+                        /* To be continued */
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+int measure_aa_a2a(PAR *par, double *results, gsl_matrix_complex **lattice) {
     const gsl_complex z_zero = gsl_complex_rect(0., 0.); 
     gsl_complex z_temp;
     gsl_matrix_complex *m_temp_1 = NULL; 
@@ -1143,7 +1161,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         }
         printf("DEBUG: action_l = %7.2g\nDEBUG: action_r = %7.2g\n", action_1, action_2); */
 
-        if (measure(par, results, lattice)) {
+        if (measure_aa_a2a(par, results, lattice)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
             free(su2);
