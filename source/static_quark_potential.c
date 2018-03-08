@@ -22,11 +22,11 @@ int main(int argc, char *argv[])
     par->seed = 0;
     par->n_configs = 10;
     par->gen_type = (gsl_rng_type *)gsl_rng_ranlxs0;
-    par->n_su2 = 100;
+    par->n_su2 = 10000;
     par->eps = 1.;
     par->n_hits = 10;
-    par->n_therm = 500;
-    par->n_corr = 50;
+    par->n_therm = 2000;
+    par->n_corr = 200;
     par->beta = 0.;
     par->tadpole = 0.;
 
@@ -208,7 +208,23 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     double acceptance = 0.;
     gsl_matrix_complex **su2;
     gsl_matrix **results;
-    
+   
+    /* prepare data file */
+    char file_name[100];
+    FILE *data_file;
+    sprintf(file_name, "data/L%d_beta%7.2e_u%7.2e_seed%ld.bin", par->L, par->beta, par->tadpole, par->seed);
+    data_file = fopen(file_name, "w");
+    if (data_file == NULL) {
+        printf("Error: Failed opening data file for preparation. Exiting...\n");
+        return 1;
+    }
+    if (fwrite(par, sizeof(PAR), 1, data_file) == -1) {
+        printf("Failed writing parameters to file. Exiting...\n");
+        fclose(data_file);
+        return 1;
+    }
+    fclose(data_file);
+
     /* allocate memory for a specified number of random SU(2) matrices */
     su2 = malloc(par->n_su2 * sizeof(gsl_matrix_complex *));
     if (su2 == NULL) {
@@ -357,15 +373,21 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             free(results);
             return 1;
         }
-        if (unitarize_lattice(par, lattice)) {
-            for (int j = 0; j < par->n_su2; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            for (int j = 0; j < par->n_configs; j++) 
-                gsl_matrix_free(results[j]);
-            free(results);
-            return 1;
+        if (i % 1000 == 0) {
+            if (unitarize_lattice(par, lattice)) {
+                 for (int j = 0; j < par->n_su2; j++) 
+                    gsl_matrix_complex_free(su2[j]);
+                free(su2);
+                for (int j = 0; j < par->n_configs; j++) 
+                    gsl_matrix_free(results[j]);
+                free(results);
+                return 1;
+            }
         }
+        /* if (check_su2(lattice[ind(3, 3, 3, 3, 0, par->L)], lattice[ind(4, 3, 3, 3, 4)], 1e-10)) {
+            printf("DEBUG; %d\n", i);
+            return 0;
+        } */
     }
     acceptance /= (double)(par->n_therm * par->L * par->L * par->L * par->L * 4 * par->n_hits);
     printf("Thermalization-acceptance: %3.2f\n", acceptance);
@@ -390,6 +412,20 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     printf("\n");
 
     for (int i = 0; i < par->n_configs; i++) {
+        if ((i + 1) % 10 == 0) {
+            for (int j = 0; j < par->n_su2; j++) {
+                gsl_matrix_complex_set_zero(su2[j]);
+            }
+            if (init_su2(par, su2)) {
+                for (int j = 0; j < par->n_su2; j++)
+                    gsl_matrix_complex_free(su2[j]);
+                free(su2);
+                for (int j = 0; j < par->n_configs; j++) 
+                    gsl_matrix_free(results[j]);
+                free(results);
+                return 1;
+            }
+        }
         for (int j = 0; j < par->n_corr; j++) {
             if(update_lattice(par, lattice, su2, &acceptance)) {
                 for (int k = 0; k < par->n_su2; k++) 
@@ -399,16 +435,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
                     gsl_matrix_free(results[k]);
                 free(results);
                 return 1;
-            }
-            if (unitarize_lattice(par, lattice)) {
-                for (int k = 0; k < par->n_su2; k++) 
-                    gsl_matrix_complex_free(su2[k]);
-                free(su2);
-                for (int k = 0; k < par->n_configs; k++) 
-                    gsl_matrix_free(results[k]);
-                free(results);
-                return 1;
-            }
+            } 
 
             /* DEBUG: print out ReTr of some random link on the lattice / print out the matrix product of a
              * link and his conjugate transpose
@@ -453,8 +480,16 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         }
         printf("DEBUG: action_l = %7.2g\nDEBUG: action_r = %7.2g\n", action_1, action_2);
         DEBUG END */
-
-        if (measure(par, results[i], lattice)) {
+        if (unitarize_lattice(par, lattice)) {
+            for (int k = 0; k < par->n_su2; k++) 
+                gsl_matrix_complex_free(su2[k]);
+            free(su2);
+            for (int k = 0; k < par->n_configs; k++) 
+                gsl_matrix_free(results[k]);
+            free(results);
+            return 1;
+        }
+        if (measure(par, results[i], lattice, file_name)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
             free(su2);
@@ -473,10 +508,10 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
                 break;
         }
         printf("\n");
-        /* measure tadpole and print out the results */
+        /* measure tadpole and print out the results 
         double tadpole_result;
         measure_tadpole(par, lattice, &tadpole_result);
-        printf("u_0 = %3.2f\n", tadpole_result);
+        printf("u_0 = %3.2f\n", tadpole_result); */
         
         /* printf("%g\n", gauge_inv(par, lattice)); */
 
@@ -855,9 +890,13 @@ int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
     return 0;
 }
 
-int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice) {
+int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *file_name) {
     double result;
     
+    FILE *data_file;
+
+    data_file = fopen(file_name, "ab");
+
     gsl_matrix_set_zero(results);
 
     for (int i = 0; i < par->L; i++) {
@@ -943,6 +982,15 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice) {
             }
         }
     }
+
+    for (int i = 0; i < par->L - 1; i++) {
+        for (int j = i; j < par->L - 1; j++) {
+            result = gsl_matrix_get(results, i, j);
+            fwrite(&result, sizeof(double), 1, data_file);
+        }
+    }
+    
+    fclose(data_file);
 
     return 0;
 }

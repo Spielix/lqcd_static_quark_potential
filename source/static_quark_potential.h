@@ -47,7 +47,7 @@ void psl_matrix_complex_product_3_add(
     gsl_matrix_complex *m_sum
 );
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
-int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice);
+int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *file_name);
 int measure_aa_a2a(PAR *par, double *results, gsl_matrix_complex **lattice);
 int measure_action_l(PAR *par, gsl_matrix_complex **lattice, double *action);
 int measure_action_r(PAR *par, gsl_matrix_complex **lattice, double *action);
