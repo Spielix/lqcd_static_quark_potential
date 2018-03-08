@@ -97,7 +97,7 @@ int init_su2(PAR *par, gsl_matrix_complex **su2){
 		for(int i = 0; i < 4; i++){
 			gsl_matrix_complex_memcpy(temp[i], s[i]);
 		}
-		gsl_matrix_complex_scale(temp[0], gsl_complex_rect(sign(r[0])*sqrt(1-par->eps*par->eps), 0));
+		gsl_matrix_complex_scale(temp[0], gsl_complex_rect(/*sign(r[0])* */sqrt(1-par->eps*par->eps), 0));
 		for(int i = 1; i < 4; i++){
 			gsl_matrix_complex_scale(temp[i], gsl_complex_rect(0, par->eps*r[i]/r_abs));
 		}
