@@ -13,6 +13,7 @@
 #include <gsl/gsl_rng.h>    /* random number generation */
 #include <gsl/gsl_complex.h>
 #include <gsl/gsl_complex_math.h>
+#include <gsl/gsl_matrix_double.h>
 #include <gsl/gsl_matrix_complex_double.h>
 #include <gsl/gsl_vector_complex_double.h>
 #include <gsl/gsl_blas.h>   /* Basic Linear Algebra Subprograms */
@@ -46,7 +47,7 @@ void psl_matrix_complex_product_3_add(
     gsl_matrix_complex *m_sum
 );
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
-int measure(PAR *par, double *results, gsl_matrix_complex **lattice);
+int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice);
 int measure_aa_a2a(PAR *par, double *results, gsl_matrix_complex **lattice);
 int measure_action_l(PAR *par, gsl_matrix_complex **lattice, double *action);
 int measure_action_r(PAR *par, gsl_matrix_complex **lattice, double *action);
