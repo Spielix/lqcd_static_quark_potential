@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     par->L = 0;
     par->seed = 0;
     par->n_configs = 10;
-    par->gen_type = (gsl_rng_type *)gsl_rng_ranlxs0;
+    par->gen_type = (gsl_rng_type *)gsl_rng_mt19937;
     par->n_su2 = 10000;
     par->eps = 1.;
     par->n_hits = 10;
@@ -208,6 +208,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     double acceptance = 0.;
     gsl_matrix_complex **su2;
     gsl_matrix **results;
+    double tadpole_result[100];
    
     /* prepare data file */
     char file_name[100];
@@ -489,7 +490,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             free(results);
             return 1;
         }
-        if (measure(par, results[i], lattice, file_name)) {
+        /* if (measure(par, results[i], lattice, file_name)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
             free(su2);
@@ -507,11 +508,10 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             if (k == 2) 
                 break;
         }
-        printf("\n");
-        /* measure tadpole and print out the results 
-        double tadpole_result;
-        measure_tadpole(par, lattice, &tadpole_result);
-        printf("u_0 = %3.2f\n", tadpole_result); */
+        printf("\n"); */
+        /* measure tadpole and print out the results */ 
+        measure_tadpole(par, lattice, tadpole_result + i);
+        printf("u_0 = %3.2f\n", tadpole_result[i]);
         
         /* printf("%g\n", gauge_inv(par, lattice)); */
 
@@ -550,6 +550,14 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
 
         DEBUG END */
     }
+
+    double tadpole_avg = 0.;
+    for (int i = 0; i < par->n_configs; i++) {
+        tadpole_avg += tadpole_result[i];
+    }
+    tadpole_avg /= par->n_configs;
+    printf("tadpole avg = %9.4e\n", tadpole_avg);
+
     acceptance /= (double)(par->n_configs * par->n_corr * par->L * par->L * par->L * par->L * 4 * par->n_hits);
     printf("Acceptance: %3.2f\n", acceptance);
     
