@@ -270,6 +270,7 @@ int main(int argc, char **argv){
 	for(int i = 0; i < par.L-1; i++) {
 		for(int j = i; j < par.L-1; j++) {
 			err[i][j] = error_auto_weight(data[i][j], mu[i][j], par.n_configs, std_dev[i]+j, t_corr[i]+j);
+			printf("%d,%d\t%g\n", i+1, j+1, t_corr[i][j]);
 		}
 	}
 	double *wt = malloc(par.L*sizeof(double));
@@ -277,21 +278,22 @@ int main(int argc, char **argv){
 	FILE *output;
 	char filename[100];
 	char mkdir[100];
+	snprintf(mkdir, 100, "mkdir %s_pltdata", argv[1]);
+	system(mkdir);
 	for(int r = 0; r < par.L-1; r++){
 		for(int t = r-1; t >= 0; t--){
 			wt[t] = mu[t][r];
 			wt_err[t] = err[t][r];
 		}
-		for(int t = r; t < par.L; t++){
+		for(int t = r; t < par.L-1; t++){
 			wt[t] = mu[r][t];
 			wt_err[t] = err[r][t];
 		}
-		snprintf(mkdir, 100, "mkdir %s_pltdata", argv[1]);
-		system(mkdir);
-		snprintf(filename, 100, "%s_pltdata/%d.txt", argv[1], r);
+		
+		snprintf(filename, 100, "%s_pltdata/%d.txt", argv[1], r+1);
 		output = fopen(filename, "w");
 		for(int t = 0; t < par.L-2; t++){
-			fprintf(output, "%d\t%g\t%g\n", t, log(wt[t]/wt[t+1]), sqrt((wt_err[t]/wt[t])*(wt_err[t]/wt[t])+(wt_err[t+1]/wt[t+1])*(wt_err[t+1]/wt[t+1])));
+			fprintf(output, "%d\t%g\t%g\n", t+1, -log(wt[t]/wt[t+1]), sqrt((wt_err[t]/wt[t])*(wt_err[t]/wt[t])+(wt_err[t+1]/wt[t+1])*(wt_err[t+1]/wt[t+1])));
 		}
 		fclose(output);
 	}
