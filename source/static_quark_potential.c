@@ -491,7 +491,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             return 1;
         }
         
-        if (measure(par, results[i], lattice, file_name)) {
+        /* if (measure(par, results[i], lattice, file_name)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
             free(su2);
@@ -509,10 +509,10 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             if (k == 2) 
                 break;
         }
-        printf("\n"); 
-        /* measure tadpole and print out the results 
-        measure_tadpole(par, lattice, tadpole_result + i);
-        printf("u_0 = %3.2f\n", tadpole_result[i]); */
+        printf("\n"); */
+        /* measure tadpole and print out the results */
+        measure_tadpole_alt(par, lattice, tadpole_result + i);
+        printf("u_0 = %3.2f\n", tadpole_result[i]); 
         
         /* printf("%g\n", gauge_inv(par, lattice)); */
 
@@ -552,13 +552,13 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         DEBUG END */
     }
 
-    /* double tadpole_avg = 0.;
+    double tadpole_avg = 0.;
     for (int i = 0; i < par->n_configs; i++) {
         tadpole_avg += tadpole_result[i];
     }
     tadpole_avg /= par->n_configs;
     printf("tadpole avg = %9.4e\n", tadpole_avg);
-    */
+    
     acceptance /= (double)par->n_configs * (double)par->n_corr * (double)(par->L * par->L * par->L * par->L * 4 * par->n_hits);
     printf("Acceptance: %3.2f\n", acceptance);
     
@@ -1033,6 +1033,71 @@ void measure_tadpole(PAR *par, gsl_matrix_complex **lattice, double *tadpole_res
         }
     }
     *tadpole_result /= (double)(2 * par->L * par->L * par->L * par->L * 4);
+}
+
+int measure_tadpole_alt(PAR *par, gsl_matrix_complex **lattice, double *tadpole_result) {
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.); 
+    gsl_complex z_temp;
+    gsl_matrix_complex *m_temp_1 = NULL; 
+
+    *tadpole_result = 0.;
+
+    m_temp_1 = gsl_matrix_complex_alloc(2, 2);
+    if (m_temp_1 == NULL) {
+        printf("Error: Failed allocating memory for temporary matrices used in the action-measurement function. Exiting...\n");
+        return 1;
+    }
+    
+    for (int i = 0; i < par->L; i++) {
+        for (int j = 0; j < par->L; j++) {
+            for (int k = 0; k < par->L; k++) {
+                for (int l = 0; l < par->L; l++) {
+                    for (int dir_1 = 0; dir_1 < 4; dir_1++) {
+                        for (int dir_2 = dir_1 + 1; dir_2 < 4; dir_2++) {
+                            /* calculate a x a Wilson-loop */
+                            psl_matrix_complex_product_4(
+                                par,
+                                lattice[ind(i, j, k, l, dir_1, par->L)],
+                                lattice[periodic_ind(
+                                    i + (dir_1 == 0), 
+                                    j + (dir_1 == 1), 
+                                    k + (dir_1 == 2), 
+                                    l + (dir_1 == 3), 
+                                    dir_2,
+                                    par->L
+                                )],
+                                lattice[periodic_ind(
+                                    i + (dir_1 == 0) + (dir_2 == 0), 
+                                    j + (dir_1 == 1) + (dir_2 == 1), 
+                                    k + (dir_1 == 2) + (dir_2 == 2), 
+                                    l + (dir_1 == 3) + (dir_2 == 3), 
+                                    dir_1 + 4,
+                                    par->L
+                                )],
+                                lattice[periodic_ind(
+                                    i + (dir_2 == 0), 
+                                    j + (dir_2 == 1), 
+                                    k + (dir_2 == 2), 
+                                    l + (dir_2 == 3), 
+                                    dir_2 + 4,
+                                    par->L
+                                )],
+                                m_temp_1
+                            );
+                            z_temp = z_zero;
+                            for (int m = 0; m < 2; m++)     /* trace */
+                                z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_1, m, m));
+                            *tadpole_result += GSL_REAL(z_temp);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    /* factor 1/2 from Plaquette operator and -beta from Wilson action */
+    *tadpole_result /=  2. * (double)(par->L * par->L * par->L * par->L * 6); 
+    *tadpole_result = sqrt(sqrt(*tadpole_result));
+    return 0;
 }
 
 int measure_aa_a2a(PAR *par, double *results, gsl_matrix_complex **lattice) {

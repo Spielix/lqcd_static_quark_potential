@@ -61,6 +61,7 @@ int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double eps
 double gauge_inv(PAR *par, gsl_matrix_complex **lattice);
 int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice);
 void measure_tadpole(PAR *par, gsl_matrix_complex **lattice, double *tadpole_result);
+int measure_tadpole_alt(PAR *par, gsl_matrix_complex **lattice, double *tadpole_result);
 
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
  * starting point and save it under m_product*/
