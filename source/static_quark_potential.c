@@ -618,13 +618,13 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
 
 /* calculate the position of a specific link in the array */
 static inline int ind(int i, int j, int k, int l, int dir, int le) {
-    return (((le * i + j) * le + k) * le + l) * 8 + dir;
+    return (((i * le + j) * le + k) * le + l) * 8 + dir;
 }
 
 /* calculate the position of a specific link in the array, while applying periodic boundary conditions to all
  * coordinates */
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le) {
-    return (((le * (i % le_0) + (j % le)) * le + (k % le)) * le + (l % le)) * 8 + dir;
+    return (((((i + le_0) % le_0) * le + ((j + le) % le)) * le + ((k + le) % le)) * le + ((l + le) % le)) * 8 + dir;
 }
 
 /* function to get the conjugate transpose matrix */
@@ -1869,7 +1869,9 @@ void init_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
+
                     for (int dir = 0; dir < 4; dir++) {
+
                         gsl_matrix_complex_memcpy(
                             lattice[ind(i, j, k, l, dir, par->L)], 
                             su2[(int)(gsl_rng_uniform(par->ran_gen) * par->n_su2)]
@@ -1885,7 +1887,9 @@ void init_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **s
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
+
                     for (int dir_dagger = 4; dir_dagger < 8; dir_dagger++) {
+
                         psl_matrix_complex_dagger_memcpy(
                             lattice[ind(i, j, k, l, dir_dagger, par->L)], 
                             lattice[periodic_ind(

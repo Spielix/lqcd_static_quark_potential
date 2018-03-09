@@ -177,7 +177,7 @@ static inline int gauge_periodic_ind(int i, int j, int k, int l, int dagger, int
 
 void init_gauge(PAR *par, gsl_matrix_complex **gauge, gsl_matrix_complex **su2) {
     /* initialize all independent links with random SU(2) matrices */
-    for (int i = 0; i < par->L; i++) {
+    for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
@@ -191,7 +191,7 @@ void init_gauge(PAR *par, gsl_matrix_complex **gauge, gsl_matrix_complex **su2) 
     }
 
     /* generate the daggered matrices */
-    for (int i = 0; i < par->L; i++) {
+    for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
@@ -221,7 +221,7 @@ double gauge_inv(PAR *par, gsl_matrix_complex **lattice){
 
 	init_su2(par, temp);
 	init_gauge(par, gauge, temp);
-	for(int a = 0; a < par->L; a++){
+	for(int a = 0; a < par->L_t; a++){
 		for(int b = 0; b < par->L; b++){
 			for(int c = 0; c < par->L; c++){
 				for(int d = 0; d < par->L; d++){
@@ -244,7 +244,7 @@ double gauge_inv(PAR *par, gsl_matrix_complex **lattice){
 			}
 		}
 	}
-	for (int i = 0; i < par->L; i++) {
+	for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
@@ -321,7 +321,7 @@ int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice){
 
 	init_su2(par, su2_gauge);
 	init_gauge(par, gauge, su2_gauge);
-	for(int a = 0; a < par->L; a++){
+	for(int a = 0; a < par->L_t; a++){
 		for(int b = 0; b < par->L; b++){
 			for(int c = 0; c < par->L; c++){
 				for(int d = 0; d < par->L; d++){
@@ -344,7 +344,7 @@ int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice){
 			}
 		}
 	}
-	for (int i = 0; i < par->L; i++) {
+	for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
