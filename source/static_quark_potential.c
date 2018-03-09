@@ -1,5 +1,5 @@
 #include "static_quark_potential.h"
-
+// #define TADP
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le);
@@ -490,8 +490,8 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             free(results);
             return 1;
         }
-        
-        /* if (measure(par, results[i], lattice, file_name)) {
+#ifndef TADP      
+        if (measure(par, results[i], lattice, file_name)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
             free(su2);
@@ -509,11 +509,13 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             if (k == 2) 
                 break;
         }
-        printf("\n"); */
+        printf("\n");
+#endif
+#ifdef TADP
         /* measure tadpole and print out the results */
         measure_tadpole_alt(par, lattice, tadpole_result + i);
-        printf("u_0 = %3.2f\n", tadpole_result[i]); 
-        
+        printf("u_0 = %3.2f\n", tadpole_result[i]);
+#endif
         /* printf("%g\n", gauge_inv(par, lattice)); */
 
         /* DEBUG: gauge transform the lattice and look at the effect on measurements  
@@ -552,13 +554,14 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         DEBUG END */
     }
 
+#ifdef TADP
     double tadpole_avg = 0.;
     for (int i = 0; i < par->n_configs; i++) {
         tadpole_avg += tadpole_result[i];
     }
     tadpole_avg /= par->n_configs;
     printf("tadpole avg = %9.4e\n", tadpole_avg);
-    
+#endif
     acceptance /= (double)par->n_configs * (double)par->n_corr * (double)(par->L * par->L * par->L * par->L * 4 * par->n_hits);
     printf("Acceptance: %3.2f\n", acceptance);
     
