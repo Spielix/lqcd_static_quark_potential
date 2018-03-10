@@ -1,5 +1,6 @@
 #include "static_quark_potential.h"
 // #define TADP
+#define NO_BIG_LOOPS
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le);
@@ -251,7 +252,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     /* prepare data file */
     char file_name[100];
     FILE *data_file;
-    sprintf(file_name, "data/L%d_beta%7.2e_u%7.2e_seed%ld.bin", par->L, par->beta, par->tadpole, par->seed);
+    sprintf(file_name, "data/L%d_Lt%d_beta%3.2f_u%3.2f_seed%ld.bin", par->L, par->L_t, par->beta, par->tadpole, par->seed);
     data_file = fopen(file_name, "w");
     if (data_file == NULL) {
         printf("Error: Failed opening data file for preparation. Exiting...\n");
@@ -947,7 +948,11 @@ int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
 
 int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *file_name) {
     double result;
-    
+#ifndef NO_BIG_LOOPS
+    int max_loop_side_length = par->L - 1;
+#else
+    int max_loop_side_length = 7;
+#endif
     FILE *data_file;
 
     data_file = fopen(file_name, "ab");
@@ -962,8 +967,8 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
                     for (int dir_1 = 0; dir_1 < 4; dir_1++) {
                         for (int dir_2 = dir_1 + 1; dir_2 < 4; dir_2++) {
 
-                            for (int L_1 = 1; L_1 < par->L; L_1++) {
-                                for (int L_2 = L_1; L_2 < par->L; L_2++) {
+                            for (int L_1 = 1; L_1 <= max_loop_side_length; L_1++) {
+                                for (int L_2 = L_1; L_2 <= max_loop_side_length; L_2++) {
 
                                     if (lattice_loop_rect(
                                         par, 
@@ -1013,7 +1018,7 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
                             }
                         }
                     }
-
+#ifndef NO_BIG_LOOPS
                     for (int dir = 1; dir < 4; dir++) {
                         for (int L_0 = par->L; L_0 < par->L_t; L_0++) {
                             for (int L_i = 1; L_i < par->L; L_i++) {
@@ -1040,6 +1045,7 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
                             }
                         }
                     }
+#endif
                 }
             }
         }
@@ -1064,6 +1070,7 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
             }
         }
     }
+#ifndef NO_BIG_LOOPS
     for (int i = par->L - 1; i < par->L_t - 1; i++) {
         for (int j = 0; j < par->L - 1; j++) {
             gsl_matrix_set(
@@ -1074,19 +1081,21 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
             );
         }
     }
-
+#endif
     for (int i = 0; i < par->L - 1; i++) {
         for (int j = i; j < par->L - 1; j++) {
             result = gsl_matrix_get(results, i, j);
             fwrite(&result, sizeof(double), 1, data_file);
         }
     }
+#ifndef NO_BIG_LOOPS
     for (int i = par->L - 1; i < par->L_t - 1; i++) {
         for (int j = 0; j < par->L - 1; j++) {
             result = gsl_matrix_get(results, i, j);
             fwrite(&result, sizeof(double), 1, data_file);
         }
     }
+#endif
 
 
     fclose(data_file);
@@ -1559,8 +1568,9 @@ int update_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
+
                     for (int dir_1 = 0; dir_1 < 4; dir_1++) {
-                        /* calculate Gamma_mu(x) which is needed to calculate the differences in action later */
+                        /* calculate the sum over all staples (parts of plaquette operators which contain the link that is to be updated) which is needed to calculate the differences in action later */
                         gsl_matrix_complex_set_zero(Gamma);
                         for (int dir_2 = 0; dir_2 < 4; dir_2++) {
                             if (dir_1 == dir_2) 

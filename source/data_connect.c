@@ -3,8 +3,9 @@
 int main(int argc, char *argv[]) {
     PAR par_old, par_new;
     FILE *data_file_old, *data_file_new;
-    int counter = 0;
+    int counter = 0, n_data;
     char s_temp[1000];
+    double *data_set = NULL;
 
     data_file_new = fopen(argv[1], "w");
     if (data_file_new == NULL) {
@@ -32,6 +33,18 @@ int main(int argc, char *argv[]) {
         }
         if (i == 2) {
             par_new = par_old;
+            n_data = par_new.L * par_new.L_t - par_new.L_t - (par_new.L * par_new.L - par_new.L) / 2.;
+
+            data_set = malloc(n_data * sizeof(double));
+            if (data_set == NULL) {
+                printf("Failed allocating memory for data set. Exiting...\n");
+                fclose(data_file_old);
+                fclose(data_file_new);
+                if (remove(argv[1])) 
+                    printf("Warning: Failed removing unfinished data file.\n");
+                exit(EXIT_FAILURE);
+            }
+
             if (fwrite(&par_new, sizeof(PAR), 1, data_file_new) != 1) {
                 printf("Failed writing parameter struct to new data file. Exiting...\n");\
                 fclose(data_file_old);
@@ -72,17 +85,13 @@ int main(int argc, char *argv[]) {
             if ((par_old.n_corr != par_new.n_corr) || (par_old.n_therm != par_new.n_therm)) 
                 printf("Warning: Data files with differing n_corr / n_therm detected. Continuing...\n");
         }
+        int counter_file = 0;
         while (!feof(data_file_old)) {
-            double data;
-            if (fread(&data, sizeof(double), 1, data_file_old) != 1) {
-                printf("Failed reading data from data file. Exiting...\n");
-                fclose(data_file_old);
-                fclose(data_file_new);
-                if (remove(argv[1])) 
-                    printf("Warning: Failed removing unfinished data file.\n");
-                exit(EXIT_FAILURE);
+            if (fread(data_set, sizeof(double), n_data, data_file_old) != n_data) {
+                printf("Warning: Failed reading a data %d set from data file %s. Continuing with next file\n", counter_file, argv[i]);
+                break;
             }
-            if (fwrite(&data, sizeof(double), 1, data_file_new) != 1) {
+            if (fwrite(data_set, sizeof(double), n_data, data_file_new) != n_data) {
                 printf("Failed writing data to file. Exiting...\n");
                 fclose(data_file_old);
                 fclose(data_file_new);
@@ -91,6 +100,7 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             counter++;
+            counter_file++;
         }
         fclose(data_file_old);
     }
@@ -107,13 +117,21 @@ int main(int argc, char *argv[]) {
     }
 
     fclose(data_file_new);
-
-    for (int i = 2; i < argc; i++) {
-        sprintf(s_temp, "%s_went_into_%s", argv[i], argv[1]);
-        if (rename(argv[i], s_temp)) {
-            printf("Warning: Failed renaming file %s.\n", argv[i]);
+    
+    if (counter) {
+        for (int i = 2; i < argc; i++) {
+            sprintf(s_temp, "%s_went_into_%s", argv[i], argv[1]);
+            if (rename(argv[i], s_temp)) {
+                printf("Warning: Failed renaming file %s.\n", argv[i]);
+            }
         }
+    } else {
+        printf("Failed filling the new file with data. Exiting...");
+        if (remove(argv[1])) 
+            printf("Warning: Failed removing unfinished data file.\n");
+        exit(EXIT_FAILURE); 
     }
-
+    
+    free(data_set);
     exit(EXIT_SUCCESS);
 }
