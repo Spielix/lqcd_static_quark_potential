@@ -149,19 +149,19 @@ int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double eps
 	return ret;
 }
 
-static inline int msl_mat_mul(gsl_matrix_complex *A, gsl_matrix_complex *B, gsl_matrix_complex *C){
-	return gsl_blas_zgemm(CblasNoTrans, CblasNoTrans, gsl_complex_rect(1,0), A, B, gsl_complex_rect(0,0), C);
-}
-
 /* calculate the position of a specific link in the array */
 static inline int ind(int i, int j, int k, int l, int dir, int le) {
-    return (((le * i + j) * le + k) * le + l) * 8 + dir;
+    return (((i * le + j) * le + k) * le + l) * 8 + dir;
 }
 
 /* calculate the position of a specific link in the array, while applying periodic boundary conditions to all
  * coordinates */
-static inline int periodic_ind(int i, int j, int k, int l, int dir, int le) {
-    return (((le * (i & (le - 1)) + (j & (le - 1))) * le + (k & (le - 1))) * le + (l & (le - 1))) * 8 + dir;
+static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le) {
+    return (((((i + le_0) % le_0) * le + ((j + le) % le)) * le + ((k + le) % le)) * le + ((l + le) % le)) * 8 + dir;
+}
+
+static inline int msl_mat_mul(gsl_matrix_complex *A, gsl_matrix_complex *B, gsl_matrix_complex *C){
+	return gsl_blas_zgemm(CblasNoTrans, CblasNoTrans, gsl_complex_rect(1,0), A, B, gsl_complex_rect(0,0), C);
 }
 
 /* calculate the position of a specific link in the gauge array */
@@ -171,8 +171,8 @@ static inline int gauge_ind(int i, int j, int k, int l, int dagger, int le) {
 
 /* calculate the position of a specific link in the gauge array, while applying periodic boundary conditions to all
  * coordinates */
-static inline int gauge_periodic_ind(int i, int j, int k, int l, int dagger, int le) {
-    return (((le * (i & (le - 1)) + (j & (le - 1))) * le + (k & (le - 1))) * le + (l & (le - 1))) * 2 + dagger;
+static inline int gauge_periodic_ind(int i, int j, int k, int l, int dagger, int le_0, int le) {
+    return (((le * ((i  + le_0) % le_0) + ((j + le) % le)) * le + ((k + le) % le)) * le + ((l + le) % le)) * 2 + dagger;
 }
 
 void init_gauge(PAR *par, gsl_matrix_complex **gauge, gsl_matrix_complex **su2) {
@@ -237,7 +237,10 @@ double gauge_inv(PAR *par, gsl_matrix_complex **lattice){
 								b + (dir == 1),
 								c + (dir == 2),
 								d + (dir == 3), 
-								1, par->L)],
+								1, 
+                                par->L_t, 
+                                par->L
+                            )],
 							gauged_lattice[ind(a, b, c, d, dir, par->L)]);
 					}
 				}
@@ -257,6 +260,7 @@ double gauge_inv(PAR *par, gsl_matrix_complex **lattice){
                                 k - (dir_dagger == 6), 
                                 l - (dir_dagger == 7), 
                                 dir_dagger - 4, 
+                                par->L_t, 
                                 par->L
                             )]
                         );
@@ -283,7 +287,7 @@ double gauge_inv(PAR *par, gsl_matrix_complex **lattice){
 /* applicates a random local gauge transformation onto the lattice. all operators should be invariant under this
  * transformation */
 int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice){
-	gsl_matrix_complex **gauge = malloc((par->L*par->L*par->L*par->L*2)*sizeof(gsl_matrix_complex*)); 
+	gsl_matrix_complex **gauge = malloc((par->L_t*par->L*par->L*par->L*2)*sizeof(gsl_matrix_complex*)); 
     if (gauge == NULL) {
         printf("Error: Failed allocating memory for lattice of gauge matrices. Exiting...\n");
         return 1;
@@ -294,7 +298,7 @@ int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice){
         free(gauge);
         return 1;
     }
-	for(int i = 0; i < par->L*par->L*par->L*par->L*2; i++) {
+	for(int i = 0; i < par->L_t*par->L*par->L*par->L*2; i++) {
         gauge[i] = gsl_matrix_complex_calloc(2,2);
         if (gauge[i] == NULL) {
             printf("Error: Failed allocating memory for gauge matrices. Exiting...\n");
@@ -311,7 +315,7 @@ int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice){
             printf("Error: Failed allocating memory for SU(2) matrices for the gauge transformation. Exiting...\n");
             for (int j = 0; j < i; j++) 
                 gsl_matrix_complex_free(su2_gauge[j]);
-            for (int j = 0; j < par->L * par->L * par->L * par->L * 2; j++) 
+            for (int j = 0; j < par->L_t * par->L * par->L * par->L * 2; j++) 
                 gsl_matrix_complex_free(gauge[j]);
             free(su2_gauge);
             free(gauge);
@@ -337,7 +341,10 @@ int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice){
 								b + (dir == 1),
 								c + (dir == 2),
 								d + (dir == 3), 
-								1, par->L)],
+								1, 
+                                par->L_t, 
+                                par->L
+                            )],
 							lattice[ind(a, b, c, d, dir, par->L)]);
 					}
 				}
@@ -357,6 +364,7 @@ int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice){
                                 k - (dir_dagger == 6), 
                                 l - (dir_dagger == 7), 
                                 dir_dagger - 4, 
+                                par->L_t, 
                                 par->L
                             )]
                         );
@@ -368,7 +376,7 @@ int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice){
 	
     for(int i = 0; i < par->n_su2; i++) 
 		gsl_matrix_complex_free(su2_gauge[i]);
-    for (int i = 0; i < par->L * par->L * par->L * par->L * 2; i++) 
+    for (int i = 0; i < par->L_t * par->L * par->L * par->L * 2; i++) 
         gsl_matrix_complex_free(gauge[i]);
 	free(su2_gauge);
 	free(gauge);

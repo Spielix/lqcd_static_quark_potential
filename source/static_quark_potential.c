@@ -1,10 +1,12 @@
 #include "static_quark_potential.h"
 // #define TADP
-#define NO_BIG_LOOPS
+// #define NO_BIG_LOOPS
+// #define GAUGE
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le);
-
+static inline int temp_ind(int i, int j, int k, int l, int dir, int ll, int le_0, int le);
+static inline int temp_periodic_ind(int i, int j, int k, int l, int dir, int ll, int le_0, int le);
 
 #ifndef MAIN_STATIC__C
 int main(int argc, char *argv[])
@@ -77,6 +79,7 @@ int read_args(PAR *par, char *arg) {
         }
         /* preparing for the simulation */
         int num_of_links = par->L_t * par->L * par->L * par->L * 8;
+        int temp_lat_size = num_of_links * par->L_t;
         
         /* initialization of random number generator */
         par->ran_gen = gsl_rng_alloc(par->gen_type);
@@ -101,6 +104,10 @@ int read_args(PAR *par, char *arg) {
         for (int i = 0; i < num_of_links; i++)
             gsl_matrix_complex_free(lattice[i]);
         free(lattice);
+        for (int i = 0; i < temp_lat_size; i++) 
+            gsl_matrix_complex_free(par->temp_lat[i]);
+        free(par->temp_lat);
+        free(par->temp_lat_filled);
 
         return !success;
     }
@@ -116,7 +123,8 @@ int read_args(PAR *par, char *arg) {
     *s++ = '\0';
 
     if (!strcmp(arg, "L")) {
-        int num_of_links;
+        int num_of_links, 
+            temp_lat_size;
    
         /* checking if the given lattice size is a power of 2 */
         par->L = strtod(s, NULL);
@@ -130,10 +138,14 @@ int read_args(PAR *par, char *arg) {
         /* allocate memory for the lattice (link matrices) */
         if (par->L_t) {
             num_of_links = par->L_t * par->L * par->L * par->L * 8;
+            temp_lat_size = num_of_links * par->L_t;
             
-            lattice = realloc(lattice, num_of_links * sizeof(gsl_matrix_complex *));
-            if (lattice == NULL) {
-                printf("Error: Failed allocating memory for the lattice! Exiting...\n");
+            lattice = malloc(num_of_links * sizeof(gsl_matrix_complex *));
+            par->temp_lat = malloc(temp_lat_size * sizeof(gsl_matrix_complex *));
+            par->temp_lat_filled = malloc(temp_lat_size * sizeof(int));
+
+            if ((lattice == NULL) || (par->temp_lat == NULL) || (par->temp_lat_filled == NULL)) {
+                printf("Error: Failed allocating memory for the lattice and/or temporary lattice %p %p %p! Exiting...\n", (void *)lattice, (void *)par->temp_lat, (void *)par->temp_lat_filled);
                 return 1;
             }
             for (int i = 0; i < num_of_links; i++) {
@@ -143,6 +155,22 @@ int read_args(PAR *par, char *arg) {
                     for (int j = 0; j < i; j++)
                         gsl_matrix_complex_free(lattice[i]);
                     free(lattice);
+                    free(par->temp_lat);
+                    free(par->temp_lat_filled);
+                    return 1;
+                } 
+            }
+            for (int i = 0; i < temp_lat_size; i++) {
+                par->temp_lat[i] = gsl_matrix_complex_alloc(2, 2);
+                if (par->temp_lat == NULL) {
+                    printf("Error: Failed allocating memory for the temporary lattice-matrices! Exiting...\n");
+                    for (int j = 0; j < i; j++)
+                        gsl_matrix_complex_free(par->temp_lat[i]);
+                    free(par->temp_lat);
+                    for (int j = 0; j < num_of_links; j++) 
+                        gsl_matrix_complex_free(lattice[j]);
+                    free(lattice);
+                    free(par->temp_lat_filled);
                     return 1;
                 }
             }
@@ -151,7 +179,8 @@ int read_args(PAR *par, char *arg) {
     }
 
     if (!strcmp(arg, "L_t")) {
-        int num_of_links;
+        int num_of_links, 
+            temp_lat_size;
    
         /* checking if the given lattice size is a power of 2 */
         par->L_t = strtod(s, NULL);
@@ -165,10 +194,14 @@ int read_args(PAR *par, char *arg) {
         /* allocate memory for the lattice (link matrices) */
         if (par->L) {
             num_of_links = par->L_t * par->L * par->L * par->L * 8;
+            temp_lat_size = num_of_links * par->L_t;
             
-            lattice = realloc(lattice, num_of_links * sizeof(gsl_matrix_complex *));
-            if (lattice == NULL) {
-                printf("Error: Failed allocating memory for the lattice! Exiting...\n");
+            lattice = malloc(num_of_links * sizeof(gsl_matrix_complex *));
+            par->temp_lat = malloc(temp_lat_size * sizeof(gsl_matrix_complex *));
+            par->temp_lat_filled = malloc(temp_lat_size * sizeof(int));
+
+            if ((lattice == NULL) || (par->temp_lat == NULL) || (par->temp_lat_filled == NULL)) {
+                printf("Error: Failed allocating memory for the lattice and/or temporary lattice %ld %ld %ld! Exiting...\n", (long int)lattice, (long int)par->temp_lat, (long int)par->temp_lat_filled);
                 return 1;
             }
             for (int i = 0; i < num_of_links; i++) {
@@ -178,6 +211,22 @@ int read_args(PAR *par, char *arg) {
                     for (int j = 0; j < i; j++)
                         gsl_matrix_complex_free(lattice[i]);
                     free(lattice);
+                    free(par->temp_lat);
+                    free(par->temp_lat_filled);
+                    return 1;
+                } 
+            }
+            for (int i = 0; i < temp_lat_size; i++) {
+                par->temp_lat[i] = gsl_matrix_complex_alloc(2, 2);
+                if (par->temp_lat == NULL) {
+                    printf("Error: Failed allocating memory for the temporary lattice-matrices! Exiting...\n");
+                    for (int j = 0; j < i; j++)
+                        gsl_matrix_complex_free(par->temp_lat[i]);
+                    free(par->temp_lat);
+                    for (int j = 0; j < num_of_links; j++) 
+                        gsl_matrix_complex_free(lattice[j]);
+                    free(lattice);
+                    free(par->temp_lat_filled);
                     return 1;
                 }
             }
@@ -558,12 +607,14 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         measure_tadpole_alt(par, lattice, tadpole_result + i);
         printf("%12e\n", tadpole_result[i]);
 #endif
+#ifdef GAUGE
         /* printf("%g\n", gauge_inv(par, lattice)); */
 
         /* DEBUG: gauge transform the lattice and look at the effect on measurements  
         double action;
         measure_action_r(par, lattice, &action);
-        printf("action = %7.2e\n", action); 
+        printf("action = %7.2e\n", action); */
+
         if (gauge_transform_lattice(par, lattice)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
@@ -573,7 +624,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             free(results);
             return 1;
         }
-        if (measure(par, results[i], lattice)) {
+        if (measure(par, results[i], lattice, "plz_rm_this_gauge_stuff")) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
             free(su2);
@@ -592,8 +643,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
                 break;
         }
         printf("g\n");
-
-        DEBUG END */
+#endif
     }
 
 #ifdef TADP
@@ -626,6 +676,17 @@ static inline int ind(int i, int j, int k, int l, int dir, int le) {
  * coordinates */
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le) {
     return (((((i + le_0) % le_0) * le + ((j + le) % le)) * le + ((k + le) % le)) * le + ((l + le) % le)) * 8 + dir;
+}
+
+/* calculate the position of a specific link in the temp_lat array */
+static inline int temp_ind(int i, int j, int k, int l, int dir, int ll, int le_0, int le) {
+    return ((((i * le + j) * le + k) * le + l) * 8 + dir) * le_0 + ll;
+}
+
+/* calculate the position of a specific link in the temp_lat array, while applying periodic boundary conditions to all
+ * coordinates */
+static inline int temp_periodic_ind(int i, int j, int k, int l, int dir, int ll, int le_0, int le) {
+    return ((((((i + le_0) % le_0) * le + ((j + le) % le)) * le + ((k + le) % le)) * le + ((l + le) % le)) * 8 + dir) * le_0 + ll;
 }
 
 /* function to get the conjugate transpose matrix */
@@ -865,7 +926,7 @@ int lattice_loop_rect(
 }
 
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
- * starting point and save it under m_product*/
+ * starting point and save it under m_product */
 void lattice_line_product(
     const PAR *par, 
     gsl_matrix_complex **lattice, 
@@ -877,10 +938,11 @@ void lattice_line_product(
     int n_matrices, 
     gsl_matrix_complex *m_product
 ) {
-    int sign, 
-        dir_abs;
     const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
                     z_one = gsl_complex_rect(1., 0.);
+    int sign, 
+        dir_abs,
+        temp_index;
     
     if (dir < 4) { 
         sign = 1;
@@ -889,8 +951,85 @@ void lattice_line_product(
         sign = -1;
         dir_abs = dir - 4;
     }
+    
+    temp_index = temp_periodic_ind(
+        i_start, 
+        j_start, 
+        k_start, 
+        l_start, 
+        dir, 
+        n_matrices - 1, 
+        par->L_t, 
+        par->L
+    );
+    /* printf("DEBUG: %p\n", (void *)(par->temp_lat_filled + temp_index)); */
 
-    for (int x = 0; x < n_matrices; x++) {
+    if (!(par->temp_lat_filled[temp_index])) {
+        if (n_matrices == 1) { 
+            gsl_matrix_complex_memcpy(
+                par->temp_lat[temp_index], 
+                lattice[periodic_ind(
+                    i_start, 
+                    j_start, 
+                    k_start, 
+                    l_start, 
+                    dir, 
+                    par->L_t, 
+                    par->L
+                )]
+            );
+            par->temp_lat_filled[temp_index] = 1;
+        } else { 
+            gsl_blas_zgemm(
+                CblasNoTrans, 
+                CblasNoTrans, 
+                z_one,  
+                par->temp_lat[temp_periodic_ind(
+                    i_start, 
+                    j_start, 
+                    k_start, 
+                    l_start, 
+                    dir, 
+                    n_matrices - 2, 
+                    par->L_t,
+                    par->L
+                )], 
+                lattice[periodic_ind(
+                    i_start + sign * (n_matrices - 1) * (dir_abs == 0), 
+                    j_start + sign * (n_matrices - 1) * (dir_abs == 1), 
+                    k_start + sign * (n_matrices - 1) * (dir_abs == 2), 
+                    l_start + sign * (n_matrices - 1) * (dir_abs == 3), 
+                    dir, 
+                    par->L_t, 
+                    par->L
+                )], 
+                z_zero, 
+                par->temp_lat[temp_index]
+            );
+            par->temp_lat_filled[temp_index] = 1;
+        }
+    }
+    gsl_blas_zgemm(
+        CblasNoTrans, 
+        CblasNoTrans, 
+        z_one, 
+        m_product, 
+        par->temp_lat[temp_periodic_ind(
+            i_start, 
+            j_start, 
+            k_start, 
+            l_start, 
+            dir, 
+            n_matrices - 1, 
+            par->L_t, 
+            par->L
+        )], 
+        z_zero, 
+        par->m_workspace
+    );
+    gsl_matrix_complex_memcpy(m_product, par->m_workspace);
+
+    /* for (int x = 0; x < n_matrices; x++) {
         gsl_blas_zgemm(
             CblasNoTrans, 
             CblasNoTrans, 
@@ -909,7 +1048,7 @@ void lattice_line_product(
             par->m_workspace
         );
         gsl_matrix_complex_memcpy(m_product, par->m_workspace);
-    }
+    } */
 }
 
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
@@ -948,27 +1087,32 @@ int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
 
 int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *file_name) {
     double result;
+    int temp_lat_size = par->L_t * par->L * par->L * par->L * 8 * par->L_t;
 #ifndef NO_BIG_LOOPS
     int max_loop_side_length = par->L - 1;
 #else
     int max_loop_side_length = 7;
 #endif
     FILE *data_file;
+    /* int temp_lat_size = par->L * par->L * par->L * par->L_t * 8 * par->L_t; */
 
     data_file = fopen(file_name, "ab");
 
     gsl_matrix_set_zero(results);
 
-    for (int i = 0; i < par->L_t; i++) {
-        for (int j = 0; j < par->L; j++) {
-            for (int k = 0; k < par->L; k++) {
-                for (int l = 0; l < par->L; l++) {
+    for (int i = 0; i < temp_lat_size; i++) 
+        par->temp_lat_filled[i] = 0;
 
-                    for (int dir_1 = 0; dir_1 < 4; dir_1++) {
-                        for (int dir_2 = dir_1 + 1; dir_2 < 4; dir_2++) {
-
-                            for (int L_1 = 1; L_1 <= max_loop_side_length; L_1++) {
-                                for (int L_2 = L_1; L_2 <= max_loop_side_length; L_2++) {
+    for (int L_1 = 1; L_1 <= max_loop_side_length; L_1++) {
+        for (int L_2 = L_1; L_2 <= max_loop_side_length; L_2++) {
+            
+            for (int dir_1 = 0; dir_1 < 4; dir_1++) {
+                for (int dir_2 = dir_1 + 1; dir_2 < 4; dir_2++) {
+    
+                    for (int i = 0; i < par->L_t; i++) {
+                        for (int j = 0; j < par->L; j++) {
+                            for (int k = 0; k < par->L; k++) {
+                                for (int l = 0; l < par->L; l++) {
 
                                     if (lattice_loop_rect(
                                         par, 
@@ -1018,10 +1162,22 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
 #ifndef NO_BIG_LOOPS
-                    for (int dir = 1; dir < 4; dir++) {
-                        for (int L_0 = par->L; L_0 < par->L_t; L_0++) {
-                            for (int L_i = 1; L_i < par->L; L_i++) {
+    for (int L_0 = par->L; L_0 < par->L_t; L_0++) {
+        for (int L_i = 1; L_i < par->L; L_i++) {
+            
+            for (int dir = 1; dir < 4; dir++) { 
+
+                for (int i = 0; i < par->L_t; i++) {
+                    for (int j = 0; j < par->L; j++) {
+                        for (int k = 0; k < par->L; k++) {
+                            for (int l = 0; l < par->L; l++) {
+
                                 if (lattice_loop_rect(
                                     par, 
                                     lattice, 
@@ -1045,12 +1201,12 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
                             }
                         }
                     }
-#endif
                 }
             }
         }
     }
-    
+#endif
+
     for (int i = 0; i < par->L - 1; i++) {
         for (int j = i; j < par->L - 1; j++) {
             if (i == j) {

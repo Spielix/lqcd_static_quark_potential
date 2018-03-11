@@ -34,6 +34,8 @@ typedef struct PAR {
     double beta;
     double tadpole;
     gsl_matrix_complex *m_workspace;
+    gsl_matrix_complex **temp_lat;
+    int *temp_lat_filled;
 } PAR;
 
 

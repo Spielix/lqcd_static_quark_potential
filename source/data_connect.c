@@ -1,5 +1,7 @@
 #include "static_quark_potential.h"
 
+// #define NO_BIG_LOOPS
+
 int main(int argc, char *argv[]) {
     PAR par_old, par_new;
     FILE *data_file_old, *data_file_new;
@@ -33,7 +35,11 @@ int main(int argc, char *argv[]) {
         }
         if (i == 2) {
             par_new = par_old;
+#ifndef NO_BIG_LOOPS
             n_data = par_new.L * par_new.L_t - par_new.L_t - (par_new.L * par_new.L - par_new.L) / 2.;
+#else
+            n_data = 28;
+#endif
 
             data_set = malloc(n_data * sizeof(double));
             if (data_set == NULL) {
