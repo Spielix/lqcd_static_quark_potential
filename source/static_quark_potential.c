@@ -478,7 +478,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             return 0;
         } */
     }
-    acceptance /= (double)(par->n_therm * par->L * par->L * par->L * par->L * 4 * par->n_hits);
+    acceptance /= (double)(par->n_therm * par->L_t * par->L * par->L * par->L * 4 * par->n_hits);
     printf("Thermalization-acceptance: %3.2f\n", acceptance);
     acceptance = 0.;
 
