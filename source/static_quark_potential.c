@@ -654,7 +654,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     tadpole_avg /= par->n_configs;
     printf("Result: <P> = %10.5e\n", tadpole_avg);
 #endif
-    acceptance /= (double)par->n_configs * (double)par->n_corr * (double)(par->L * par->L * par->L * par->L * 4 * par->n_hits);
+    acceptance /= (double)par->n_configs * (double)par->n_corr * (double)(par->L_t * par->L * par->L * par->L * 4 * par->n_hits);
     printf("Acceptance: %3.2f\n", acceptance);
     
     for (int i = 0; i < par->n_su2; i++)
