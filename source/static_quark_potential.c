@@ -138,7 +138,10 @@ int read_args(PAR *par, char *arg) {
         /* allocate memory for the lattice (link matrices) */
         if (par->L_t) {
             num_of_links = par->L_t * par->L * par->L * par->L * 8;
-            temp_lat_size = num_of_links * par->L_t;
+            if (par->L_t > par->L) 
+                temp_lat_size = num_of_links * par->L_t;
+            else 
+                temp_lat_size = num_of_links * par->L;
             
             lattice = malloc(num_of_links * sizeof(gsl_matrix_complex *));
             par->temp_lat = malloc(temp_lat_size * sizeof(gsl_matrix_complex *));
@@ -194,7 +197,10 @@ int read_args(PAR *par, char *arg) {
         /* allocate memory for the lattice (link matrices) */
         if (par->L) {
             num_of_links = par->L_t * par->L * par->L * par->L * 8;
-            temp_lat_size = num_of_links * par->L_t;
+            if (par->L_t > par->L) 
+                temp_lat_size = num_of_links * par->L_t;
+            else 
+                temp_lat_size = num_of_links * par->L;
             
             lattice = malloc(num_of_links * sizeof(gsl_matrix_complex *));
             par->temp_lat = malloc(temp_lat_size * sizeof(gsl_matrix_complex *));
@@ -489,13 +495,16 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
         par->n_corr, 
         par->n_hits
     );
-    for (int i = 0; i < par->L - 1; i++) {
-        for (int j = i; j < par->L - 1; j++) {
+
+    printf("L_r x L_t\n");
+    for (int i = 0, index = 0; i < par->L - 1; i++) {
+        for (int j = 0; j < par->L_t - 1; j++) {
             printf("%dx%d\t\t", i + 1, j + 1);
-            if ((i == 2) && (j == 3)) 
+            index++;
+            if (index == 15) 
                 break;
         }
-        if (i == 2) 
+        if (index == 15) 
             break;
     }
     printf("\n");
@@ -591,13 +600,14 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             free(results);
             return 1;
         }
-        for (int k = 0; k < par->L - 1; k++) {
-            for (int l = k; l < par->L - 1; l++) {
-                printf("%7.3e\t", gsl_matrix_get(results[i], k, l));
-                if ((k == 2) && (l == 3)) 
+        for (int k = 0, index = 0; k < par->L - 1; k++) {
+            for (int l = 0; l < par->L_t - 1; l++) {
+                printf("%7.3e\t", gsl_matrix_get(results[i], l, k));
+                index++;
+                if (index == 15) 
                     break;
             }
-            if (k == 2) 
+            if (index == 15) 
                 break;
         }
         printf("\n");
@@ -654,6 +664,23 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     tadpole_avg /= par->n_configs;
     printf("Result: <P> = %10.5e\n", tadpole_avg);
 #endif
+
+    printf("\nAverages:\n");
+    for (int i = 1; i < par->n_configs; i++) 
+        gsl_matrix_add(results[0], results[i]);
+    gsl_matrix_scale(results[0], 1. / (double)(par->n_configs));
+    for (int k = 0, index = 0; k < par->L - 1; k++) {
+        for (int l = 0; l < par->L_t - 1; l++) {
+            printf("%7.3e\t", gsl_matrix_get(results[0], l, k));
+            index++;
+            if (index == 15) 
+                break;
+        }
+        if (index == 15) 
+            break;
+    }
+    printf("\n");
+
     acceptance /= (double)par->n_configs * (double)par->n_corr * (double)(par->L_t * par->L * par->L * par->L * 4 * par->n_hits);
     printf("Acceptance: %3.2f\n", acceptance);
     
@@ -1088,11 +1115,6 @@ int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
 int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *file_name) {
     double result;
     int temp_lat_size = par->L_t * par->L * par->L * par->L * 8 * par->L_t;
-#ifndef NO_BIG_LOOPS
-    int max_loop_side_length = par->L - 1;
-#else
-    int max_loop_side_length = 7;
-#endif
     FILE *data_file;
     /* int temp_lat_size = par->L * par->L * par->L * par->L_t * 8 * par->L_t; */
 
@@ -1103,75 +1125,10 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
     for (int i = 0; i < temp_lat_size; i++) 
         par->temp_lat_filled[i] = 0;
 
-    for (int L_1 = 1; L_1 <= max_loop_side_length; L_1++) {
-        for (int L_2 = L_1; L_2 <= max_loop_side_length; L_2++) {
+    for (int L_0 = 1; L_0 <= par->L_t - 1; L_0++) {
+        for (int L_i = 1; L_i <= par->L - 1; L_i++) {
             
-            for (int dir_1 = 0; dir_1 < 4; dir_1++) {
-                for (int dir_2 = dir_1 + 1; dir_2 < 4; dir_2++) {
-    
-                    for (int i = 0; i < par->L_t; i++) {
-                        for (int j = 0; j < par->L; j++) {
-                            for (int k = 0; k < par->L; k++) {
-                                for (int l = 0; l < par->L; l++) {
-
-                                    if (lattice_loop_rect(
-                                        par, 
-                                        lattice, 
-                                        i, 
-                                        j, 
-                                        k, 
-                                        l, 
-                                        dir_1, 
-                                        dir_2, 
-                                        L_1, 
-                                        L_2, 
-                                        &result
-                                    )) 
-                                        return 1;
-                                    gsl_matrix_set(
-                                        results, 
-                                        L_1 - 1, 
-                                        L_2 - 1, 
-                                        gsl_matrix_get(results, L_1 - 1, L_2 - 1) + result
-                                    );
-
-                                    if (L_1 == L_2) 
-                                        continue;
-
-                                    if (lattice_loop_rect(
-                                        par, 
-                                        lattice, 
-                                        i, 
-                                        j, 
-                                        k, 
-                                        l, 
-                                        dir_1, 
-                                        dir_2, 
-                                        L_2, 
-                                        L_1, 
-                                        &result
-                                    )) 
-                                        return 1;
-                                    gsl_matrix_set(
-                                        results, 
-                                        L_1 - 1, 
-                                        L_2 - 1, 
-                                        gsl_matrix_get(results, L_1 - 1, L_2 - 1) + result
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-#ifndef NO_BIG_LOOPS
-    for (int L_0 = par->L; L_0 < par->L_t; L_0++) {
-        for (int L_i = 1; L_i < par->L; L_i++) {
-            
-            for (int dir = 1; dir < 4; dir++) { 
+            for (int dir = 1; dir < 4; dir++) {
 
                 for (int i = 0; i < par->L_t; i++) {
                     for (int j = 0; j < par->L; j++) {
@@ -1205,29 +1162,9 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
             }
         }
     }
-#endif
 
-    for (int i = 0; i < par->L - 1; i++) {
-        for (int j = i; j < par->L - 1; j++) {
-            if (i == j) {
-                gsl_matrix_set(
-                    results, 
-                    i, 
-                    j, 
-                    gsl_matrix_get(results, i, j) / (double)(par->L_t * par->L * par->L * par->L * 6) / gsl_pow_int(par->tadpole, 4 * i + 4)
-                );
-            } else {
-                gsl_matrix_set(
-                    results, 
-                    i, 
-                    j, 
-                    gsl_matrix_get(results, i, j) / (double)(par->L_t * par->L * par->L * par->L * 12) / gsl_pow_int(par->tadpole, 2 * (i + j + 2))
-                );
-            }
-        }
-    }
-#ifndef NO_BIG_LOOPS
-    for (int i = par->L - 1; i < par->L_t - 1; i++) {
+    /* normalize results and apply tadpole correction */
+    for (int i = 0; i < par->L_t - 1; i++) {
         for (int j = 0; j < par->L - 1; j++) {
             gsl_matrix_set(
                 results, 
@@ -1237,22 +1174,14 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
             );
         }
     }
-#endif
-    for (int i = 0; i < par->L - 1; i++) {
-        for (int j = i; j < par->L - 1; j++) {
-            result = gsl_matrix_get(results, i, j);
-            fwrite(&result, sizeof(double), 1, data_file);
-        }
-    }
-#ifndef NO_BIG_LOOPS
-    for (int i = par->L - 1; i < par->L_t - 1; i++) {
+
+    /* write results to file */
+    for (int i = 0; i < par->L_t - 1; i++) {
         for (int j = 0; j < par->L - 1; j++) {
             result = gsl_matrix_get(results, i, j);
             fwrite(&result, sizeof(double), 1, data_file);
         }
     }
-#endif
-
 
     fclose(data_file);
 
@@ -1673,7 +1602,7 @@ int unitarize_lattice(PAR *par, gsl_matrix_complex **lattice) {
             }
         }
     }
-    for (int i = 0; i < par->L; i++) {
+    for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
