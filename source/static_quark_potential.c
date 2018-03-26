@@ -484,7 +484,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             return 0;
         } */
     }
-    acceptance /= (double)(par->n_therm * par->L_t * par->L * par->L * par->L * 4 * par->n_hits);
+    acceptance /= (double)par->n_therm * (double)par->L_t * pow((double)par->L, 3.) * 4. * (double)par->n_hits;
     printf("Thermalization-acceptance: %3.2f\n", acceptance);
     acceptance = 0.;
 
@@ -681,7 +681,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     }
     printf("\n");
 
-    acceptance /= (double)par->n_configs * (double)par->n_corr * (double)(par->L_t * par->L * par->L * par->L * 4 * par->n_hits);
+    acceptance /= (double)par->n_configs * (double)par->n_corr * (double)par->L_t * pow((double)par->L, 3.) * 4. * (double)par->n_hits;
     printf("Acceptance: %3.2f\n", acceptance);
     
     for (int i = 0; i < par->n_su2; i++)
