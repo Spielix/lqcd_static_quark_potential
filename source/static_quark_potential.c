@@ -1,6 +1,5 @@
 #include "static_quark_potential.h"
 // #define TADP
-// #define NO_BIG_LOOPS
 #define GAUGE
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
@@ -78,8 +77,8 @@ int read_args(PAR *par, char *arg) {
             return 1;
         }
         /* preparing for the simulation */
-        int num_of_links = par->L_t * par->L * par->L * par->L * 8;
-        int temp_lat_size = num_of_links * par->L_t;
+        unsigned long num_of_links = (long)(par->L_t * par->L * par->L * par->L) * (long)8;
+        unsigned long temp_lat_size = num_of_links * par->L_t;
         
         /* initialization of random number generator */
         par->ran_gen = gsl_rng_alloc(par->gen_type);
@@ -101,10 +100,10 @@ int read_args(PAR *par, char *arg) {
         
         gsl_rng_free(par->ran_gen);
         
-        for (int i = 0; i < num_of_links; i++)
+        for (unsigned long i = 0; i < num_of_links; i++)
             gsl_matrix_complex_free(lattice[i]);
         free(lattice);
-        for (int i = 0; i < temp_lat_size; i++) 
+        for (unsigned long i = 0; i < temp_lat_size; i++) 
             gsl_matrix_complex_free(par->temp_lat[i]);
         free(par->temp_lat);
         free(par->temp_lat_filled);
@@ -123,7 +122,7 @@ int read_args(PAR *par, char *arg) {
     *s++ = '\0';
 
     if (!strcmp(arg, "L")) {
-        int num_of_links, 
+        unsigned long num_of_links, 
             temp_lat_size;
    
         /* checking if the given lattice size is a power of 2 */
@@ -137,11 +136,11 @@ int read_args(PAR *par, char *arg) {
         
         /* allocate memory for the lattice (link matrices) */
         if (par->L_t) {
-            num_of_links = par->L_t * par->L * par->L * par->L * 8;
+            num_of_links = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)8;
             if (par->L_t > par->L) 
-                temp_lat_size = num_of_links * par->L_t;
+                temp_lat_size = num_of_links * (unsigned long)par->L_t;
             else 
-                temp_lat_size = num_of_links * par->L;
+                temp_lat_size = num_of_links * (unsigned long)par->L;
             
             lattice = malloc(num_of_links * sizeof(gsl_matrix_complex *));
             par->temp_lat = malloc(temp_lat_size * sizeof(gsl_matrix_complex *));
@@ -163,7 +162,7 @@ int read_args(PAR *par, char *arg) {
                     return 1;
                 } 
             }
-            for (int i = 0; i < temp_lat_size; i++) {
+            for (unsigned long i = 0; i < temp_lat_size; i++) {
                 par->temp_lat[i] = gsl_matrix_complex_alloc(2, 2);
                 if (par->temp_lat == NULL) {
                     printf("Error: Failed allocating memory for the temporary lattice-matrices! Exiting...\n");
@@ -182,7 +181,7 @@ int read_args(PAR *par, char *arg) {
     }
 
     if (!strcmp(arg, "L_t")) {
-        int num_of_links, 
+        unsigned long num_of_links, 
             temp_lat_size;
    
         /* checking if the given lattice size is a power of 2 */
@@ -196,11 +195,11 @@ int read_args(PAR *par, char *arg) {
         
         /* allocate memory for the lattice (link matrices) */
         if (par->L) {
-            num_of_links = par->L_t * par->L * par->L * par->L * 8;
+            num_of_links = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)8;
             if (par->L_t > par->L) 
-                temp_lat_size = num_of_links * par->L_t;
+                temp_lat_size = num_of_links * (unsigned long)par->L_t;
             else 
-                temp_lat_size = num_of_links * par->L;
+                temp_lat_size = num_of_links * (unsigned long)par->L;
             
             lattice = malloc(num_of_links * sizeof(gsl_matrix_complex *));
             par->temp_lat = malloc(temp_lat_size * sizeof(gsl_matrix_complex *));
@@ -222,7 +221,7 @@ int read_args(PAR *par, char *arg) {
                     return 1;
                 } 
             }
-            for (int i = 0; i < temp_lat_size; i++) {
+            for (unsigned long i = 0; i < temp_lat_size; i++) {
                 par->temp_lat[i] = gsl_matrix_complex_alloc(2, 2);
                 if (par->temp_lat == NULL) {
                     printf("Error: Failed allocating memory for the temporary lattice-matrices! Exiting...\n");
@@ -1123,14 +1122,22 @@ int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
 
 int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *file_name) {
     double result;
-    int temp_lat_size = par->L_t * par->L * par->L * par->L * 8 * par->L_t;
+    int L_max; 
+    unsigned long temp_lat_size;
     FILE *data_file;
 
+    if (par->L_t > par->L) 
+        L_max = par->L_t;
+    else 
+        L_max = par->L;
+
+    temp_lat_size = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)(8 * L_max);
+    
     data_file = fopen(file_name, "ab");
 
     gsl_matrix_set_zero(results);
 
-    for (int i = 0; i < temp_lat_size; i++) 
+    for (unsigned long i = 0; i < temp_lat_size; i++) 
         par->temp_lat_filled[i] = 0;
 
     for (int L_0 = 1; L_0 <= par->L_t - 1; L_0++) {
