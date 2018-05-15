@@ -1,12 +1,12 @@
 #include "static_quark_potential.h"
 // #define TADP
 // #define NO_BIG_LOOPS
-// #define GAUGE
+#define GAUGE
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le);
-static inline int temp_ind(int i, int j, int k, int l, int dir, int ll, int le_0, int le);
-static inline int temp_periodic_ind(int i, int j, int k, int l, int dir, int ll, int le_0, int le);
+static inline int temp_ind(int i, int j, int k, int l, int dir, int ll, int le_max, int le);
+static inline int temp_periodic_ind(int i, int j, int k, int l, int dir, int ll, int le_max, int le_0, int le);
 
 #ifndef MAIN_STATIC__C
 int main(int argc, char *argv[])
@@ -706,14 +706,14 @@ static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, in
 }
 
 /* calculate the position of a specific link in the temp_lat array */
-static inline int temp_ind(int i, int j, int k, int l, int dir, int ll, int le_0, int le) {
-    return ((((i * le + j) * le + k) * le + l) * 8 + dir) * le_0 + ll;
+static inline int temp_ind(int i, int j, int k, int l, int dir, int ll, int le_max, int le) {
+    return ((((i * le + j) * le + k) * le + l) * 8 + dir) * le_max + ll;
 }
 
 /* calculate the position of a specific link in the temp_lat array, while applying periodic boundary conditions to all
  * coordinates */
-static inline int temp_periodic_ind(int i, int j, int k, int l, int dir, int ll, int le_0, int le) {
-    return ((((((i + le_0) % le_0) * le + ((j + le) % le)) * le + ((k + le) % le)) * le + ((l + le) % le)) * 8 + dir) * le_0 + ll;
+static inline int temp_periodic_ind(int i, int j, int k, int l, int dir, int ll, int le_max, int le_0, int le) {
+    return ((((((i + le_0) % le_0) * le + ((j + le) % le)) * le + ((k + le) % le)) * le + ((l + le) % le)) * 8 + dir) * le_max + ll;
 }
 
 /* function to get the conjugate transpose matrix */
@@ -759,7 +759,8 @@ void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_compl
 } */
 
 
-/* this function calculates the matrix-product of three matrices and -->ADDs<-- the result onto the */
+/* this function calculates the matrix-product of three matrices and -->ADDs<-- the result onto the m_sum
+ * matrix */
 void psl_matrix_complex_product_3_add(
     PAR *par,
     const gsl_matrix_complex *matrix_1, 
@@ -887,6 +888,9 @@ int lattice_loop_rect(
     int L_2, 
     double *result
 ) {
+    if ((dir_1 >= 4) || (dir_2 >= 4)) 
+        printf("Warning: lattice_loop_rect was used with dir_1 or dir_2 >= 4. Something probably went wrong!\n");
+
     gsl_matrix_complex *m_temp = NULL;
     gsl_complex z_temp = gsl_complex_rect(0., 0.);
 
@@ -969,8 +973,12 @@ void lattice_line_product(
                     z_one = gsl_complex_rect(1., 0.);
     int sign, 
         dir_abs,
-        temp_index;
-    
+        temp_index,
+        last_temp_index,
+        L_max;
+    if ((dir < 0) || (dir >= 8)) 
+        printf("Warning: lattice_line_product was used with dir not in the right range. Something probably went wrong.\n");
+
     if (dir < 4) { 
         sign = 1;
         dir_abs = dir;
@@ -978,7 +986,11 @@ void lattice_line_product(
         sign = -1;
         dir_abs = dir - 4;
     }
-    
+    if (par->L_t > par->L) 
+        L_max = par->L_t;
+    else 
+        L_max = par->L;
+
     temp_index = temp_periodic_ind(
         i_start, 
         j_start, 
@@ -986,9 +998,10 @@ void lattice_line_product(
         l_start, 
         dir, 
         n_matrices - 1, 
+        L_max, 
         par->L_t, 
         par->L
-    );
+    ); 
     /* printf("DEBUG: %p\n", (void *)(par->temp_lat_filled + temp_index)); */
 
     if (!(par->temp_lat_filled[temp_index])) {
@@ -1007,20 +1020,24 @@ void lattice_line_product(
             );
             par->temp_lat_filled[temp_index] = 1;
         } else { 
+            last_temp_index = temp_periodic_ind(
+                i_start, 
+                j_start, 
+                k_start, 
+                l_start, 
+                dir, 
+                n_matrices - 2, 
+                L_max, 
+                par->L_t,
+                par->L
+            );
+            if (par->temp_lat_filled[last_temp_index] == 0) 
+                printf("Warning: lattice_line_product used a matrix of temp_lat that wasn't filled already in this measurement.\n");
             gsl_blas_zgemm(
                 CblasNoTrans, 
                 CblasNoTrans, 
                 z_one,  
-                par->temp_lat[temp_periodic_ind(
-                    i_start, 
-                    j_start, 
-                    k_start, 
-                    l_start, 
-                    dir, 
-                    n_matrices - 2, 
-                    par->L_t,
-                    par->L
-                )], 
+                par->temp_lat[last_temp_index], 
                 lattice[periodic_ind(
                     i_start + sign * (n_matrices - 1) * (dir_abs == 0), 
                     j_start + sign * (n_matrices - 1) * (dir_abs == 1), 
@@ -1041,22 +1058,13 @@ void lattice_line_product(
         CblasNoTrans, 
         z_one, 
         m_product, 
-        par->temp_lat[temp_periodic_ind(
-            i_start, 
-            j_start, 
-            k_start, 
-            l_start, 
-            dir, 
-            n_matrices - 1, 
-            par->L_t, 
-            par->L
-        )], 
+        par->temp_lat[temp_index], 
         z_zero, 
         par->m_workspace
     );
     gsl_matrix_complex_memcpy(m_product, par->m_workspace);
-
-    /* for (int x = 0; x < n_matrices; x++) {
+/*
+     for (int x = 0; x < n_matrices; x++) {
         gsl_blas_zgemm(
             CblasNoTrans, 
             CblasNoTrans, 
@@ -1077,6 +1085,7 @@ void lattice_line_product(
         gsl_matrix_complex_memcpy(m_product, par->m_workspace);
     } */
 }
+
 
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
     gsl_complex z_temp;
@@ -1116,7 +1125,6 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
     double result;
     int temp_lat_size = par->L_t * par->L * par->L * par->L * 8 * par->L_t;
     FILE *data_file;
-    /* int temp_lat_size = par->L * par->L * par->L * par->L_t * 8 * par->L_t; */
 
     data_file = fopen(file_name, "ab");
 

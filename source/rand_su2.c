@@ -13,7 +13,7 @@ int main(){
      }
 
     
-    /* initialize simulation parameters with statndard values */
+    /* initialize simulation parameters with standard values */
     par->L = 0;
     par->seed = 0;
     par->n_configs = 10;
