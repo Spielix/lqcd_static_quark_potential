@@ -1,6 +1,8 @@
 #include "static_quark_potential.h"
 // #define TADP
-#define GAUGE
+// #define GAUGE
+#define POLYA
+// #define POLYA_GAUGE
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le);
@@ -11,6 +13,7 @@ static inline int temp_periodic_ind(int i, int j, int k, int l, int dir, int ll,
 int main(int argc, char *argv[])
 {
     PAR *par = NULL;
+
     /* allocate memory for simulation parameters */
      par = malloc(sizeof(PAR));
      if (par == NULL) {
@@ -162,6 +165,7 @@ int read_args(PAR *par, char *arg) {
                     return 1;
                 } 
             }
+#ifndef POLYA
             for (unsigned long i = 0; i < temp_lat_size; i++) {
                 par->temp_lat[i] = gsl_matrix_complex_alloc(2, 2);
                 if (par->temp_lat == NULL) {
@@ -176,6 +180,7 @@ int read_args(PAR *par, char *arg) {
                     return 1;
                 }
             }
+#endif
         }
         return 0;
     }
@@ -221,6 +226,7 @@ int read_args(PAR *par, char *arg) {
                     return 1;
                 } 
             }
+#ifndef POLYA
             for (unsigned long i = 0; i < temp_lat_size; i++) {
                 par->temp_lat[i] = gsl_matrix_complex_alloc(2, 2);
                 if (par->temp_lat == NULL) {
@@ -235,6 +241,7 @@ int read_args(PAR *par, char *arg) {
                     return 1;
                 }
             }
+#endif
         }
         return 0;
     }
@@ -299,6 +306,9 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     double acceptance = 0.;
     gsl_matrix_complex **su2;
     gsl_matrix **results;
+#ifdef POLYA
+    double polya_temp_res, polya_res = 0;
+#endif
 #ifdef TADP
     double tadpole_result[100];
 #endif
@@ -590,6 +600,7 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             return 1;
         }
 #ifndef TADP      
+#ifndef POLYA
         if (measure(par, results[i], lattice, file_name)) {
             for (int j = 0; j < par->n_su2; j++) 
                 gsl_matrix_complex_free(su2[j]);
@@ -610,6 +621,21 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
                 break;
         }
         printf("\n");
+
+#endif
+#endif
+#ifdef POLYA
+        if (measure_polyakov(par, &polya_temp_res, lattice, file_name)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            for (int j = 0; j < par->n_configs; j++) 
+                gsl_matrix_free(results[j]);
+            free(results);
+            return 1;
+        }
+        printf("%e\n", polya_temp_res);
+        polya_res += polya_temp_res;
 #endif
 #ifdef TADP
         /* measure tadpole and print out the results */
@@ -642,16 +668,38 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             free(results);
             return 1;
         }
-        for (int k = 0; k < par->L - 1; k++) {
-            for (int l = k; l < par->L - 1; l++) {
-                printf("%7.3e\t", gsl_matrix_get(results[i], k, l));
-                if ((k == 2) && (l == 3)) 
+        for (int k = 0, index = 0; k < par->L - 1; k++) {
+            for (int l = 0; l < par->L_t - 1; l++) {
+                printf("%7.3e\t", gsl_matrix_get(results[i], l, k));
+                index++;
+                if (index == 15) 
                     break;
             }
-            if (k == 2) 
+            if (index == 15) 
                 break;
         }
         printf("g\n");
+#endif
+#ifdef POLYA_GAUGE
+        if (gauge_transform_lattice(par, lattice)) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            for (int j = 0; j < par->n_configs; j++) 
+                gsl_matrix_free(results[j]);
+            free(results);
+            return 1;
+        }
+        if (measure_polyakov(par, &polya_temp_res, lattice, "plz_rm_this_gauge_stuff")) {
+            for (int j = 0; j < par->n_su2; j++) 
+                gsl_matrix_complex_free(su2[j]);
+            free(su2);
+            for (int j = 0; j < par->n_configs; j++) 
+                gsl_matrix_free(results[j]);
+            free(results);
+            return 1;
+        }
+        printf("%e\tg\n", polya_temp_res);
 #endif
     }
 
@@ -663,7 +711,12 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
     tadpole_avg /= par->n_configs;
     printf("Result: <P> = %10.5e\n", tadpole_avg);
 #endif
-
+#ifdef POLYA
+    polya_res /= (double)par->n_configs;
+    printf("\nAverage:\t%f\n", polya_res);
+#endif
+#ifndef TADP
+#ifndef POLYA
     printf("\nAverages:\n");
     for (int i = 1; i < par->n_configs; i++) 
         gsl_matrix_add(results[0], results[i]);
@@ -679,6 +732,8 @@ int simulate(PAR *par, gsl_matrix_complex **lattice) {
             break;
     }
     printf("\n");
+#endif
+#endif
 
     acceptance /= (double)par->n_configs * (double)par->n_corr * (double)par->L_t * pow((double)par->L, 3.) * 4. * (double)par->n_hits;
     printf("Acceptance: %3.2f\n", acceptance);
@@ -957,6 +1012,55 @@ int lattice_loop_rect(
 
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
  * starting point and save it under m_product */
+void lattice_line_product_old(
+    const PAR *par, 
+    gsl_matrix_complex **lattice, 
+    int i_start, 
+    int j_start, 
+    int k_start, 
+    int l_start, 
+    int dir, 
+    int n_matrices, 
+    gsl_matrix_complex *m_product
+) {
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
+                    z_one = gsl_complex_rect(1., 0.);
+    int sign, 
+        dir_abs;
+    if ((dir < 0) || (dir >= 8)) 
+        printf("Warning: lattice_line_product was used with dir not in the right range. Something probably went wrong.\n");
+
+    if (dir < 4) { 
+        sign = 1;
+        dir_abs = dir;
+    } else {
+        sign = -1;
+        dir_abs = dir - 4;
+    }
+
+     for (int x = 0; x < n_matrices; x++) {
+        gsl_blas_zgemm(
+            CblasNoTrans, 
+            CblasNoTrans, 
+            z_one, 
+            m_product, 
+            lattice[periodic_ind(
+                i_start + sign * x * (dir_abs == 0), 
+                j_start + sign * x * (dir_abs == 1), 
+                k_start + sign * x * (dir_abs == 2), 
+                l_start + sign * x * (dir_abs == 3), 
+                dir, 
+                par->L_t, 
+                par->L
+            )], 
+            z_zero, 
+            par->m_workspace
+        );
+        gsl_matrix_complex_memcpy(m_product, par->m_workspace);
+    }
+}
+/* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
+ * starting point and save it under m_product */
 void lattice_line_product(
     const PAR *par, 
     gsl_matrix_complex **lattice, 
@@ -1120,6 +1224,72 @@ int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix) {
     return 0;
 }
 
+int measure_polyakov(PAR *par, double *result, gsl_matrix_complex **lattice, char *file_name) {
+    FILE *data_file;
+    char polyakov_file_name[1000];
+    gsl_matrix_complex *m_temp = NULL;
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.);
+    gsl_complex z_temp;
+
+    *result = 0.;
+
+    strcpy(polyakov_file_name, file_name);
+    polyakov_file_name[strlen(polyakov_file_name) - 4] = '\0';
+    strcat(polyakov_file_name, "_polyakov.bin");
+
+    m_temp = gsl_matrix_complex_alloc(2, 2);
+    if (m_temp == NULL) {
+        printf("Error: Failed allocating memory for temporary matrix used for calculating Polyakov-loops. Exiting...\n");
+        return 1;
+    }
+    
+    data_file = fopen(polyakov_file_name, "ab");
+    if (data_file == NULL) {
+        printf("Error: Failed opening file to write Polyakov-loop data. Exiting...\n");
+        free(m_temp);
+        return 1;
+    }
+
+    for (int j = 0; j < par->L; j++) {
+        for (int k = 0; k < par->L; k++) {
+            for (int l = 0; l < par->L; l++) {
+                gsl_matrix_complex_set_identity(m_temp);
+                lattice_line_product_old(
+                    par, 
+                    lattice, 
+                    0, 
+                    j, 
+                    k, 
+                    l, 
+                    0, 
+                    par->L_t, 
+                    m_temp
+                );
+
+                z_temp = z_zero;
+                for (int m = 0; m < 2; m++) {
+                    z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp, m, m));
+                }
+                *result += GSL_REAL(z_temp) / 2.;
+            }
+        }
+    }
+
+    /* normalize result and apply tadpole correction */
+    *result  = *result / (double)(par->L * par->L * par->L) / gsl_pow_int(par->tadpole, par->L_t);
+
+    /* write result to file */
+    if (fwrite(result, sizeof(double), 1, data_file) != 1) {
+        printf("Error: Failed writing Polyakov-loop data to file. Exiting...\n");
+        fclose(data_file);
+        free(m_temp);
+    }
+
+    fclose(data_file);
+    free(m_temp);
+
+    return 0;
+}
 int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *file_name) {
     double result;
     int L_max; 
@@ -1134,6 +1304,10 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
     temp_lat_size = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)(8 * L_max);
     
     data_file = fopen(file_name, "ab");
+    if (data_file == NULL) {
+        printf("Error: Failed opening data-file to write results of Wilson-loops. Exiting...\n");
+        return 1;
+    }
 
     gsl_matrix_set_zero(results);
 
@@ -1162,8 +1336,10 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
                                     L_0, 
                                     L_i, 
                                     &result
-                                )) 
+                                )) {
+                                    fclose(data_file);
                                     return 1;
+                                }
                                 gsl_matrix_set(
                                     results, 
                                     L_0 - 1, 
@@ -1194,7 +1370,11 @@ int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *f
     for (int i = 0; i < par->L_t - 1; i++) {
         for (int j = 0; j < par->L - 1; j++) {
             result = gsl_matrix_get(results, i, j);
-            fwrite(&result, sizeof(double), 1, data_file);
+            if (fwrite(&result, sizeof(double), 1, data_file) != 1) {
+                printf("Error: Failed writing results of Wilson-loops to data file. Exiting...\n");
+                fclose(data_file);
+                return 1;
+            }
         }
     }
 
