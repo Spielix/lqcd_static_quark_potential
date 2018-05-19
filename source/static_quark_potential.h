@@ -34,12 +34,12 @@ typedef struct PAR {
     double beta;
     double tadpole;
     gsl_matrix_complex *m_workspace;
-    gsl_matrix_complex **temp_lat;
+    double *temp_lat;
     int *temp_lat_filled;
 } PAR;
 
 
-int init_su2(PAR *par, gsl_matrix_complex **su2);
+int init_su2(PAR *par, double *su2);
 void psl_matrix_complex_dagger(gsl_matrix_complex *m);
 void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_complex *src);
 void psl_matrix_complex_product_3_add(
@@ -50,28 +50,28 @@ void psl_matrix_complex_product_3_add(
     gsl_matrix_complex *m_sum
 );
 int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
-int measure_polyakov(PAR *par, double *result, gsl_matrix_complex **lattice, char *file_name);
-int measure(PAR *par, gsl_matrix *results, gsl_matrix_complex **lattice, char *file_name);
-int measure_aa_a2a(PAR *par, double *results, gsl_matrix_complex **lattice);
-int measure_action_l(PAR *par, gsl_matrix_complex **lattice, double *action);
-int measure_action_r(PAR *par, gsl_matrix_complex **lattice, double *action);
-int unitarize_lattice(PAR *par, gsl_matrix_complex **lattice);
-int update_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **su3, double * acceptance);
-int init_su3(PAR *par, gsl_matrix_complex **su3);
-void init_lattice(PAR *par, gsl_matrix_complex **lattice, gsl_matrix_complex **su3);
-int simulate(PAR *par, gsl_matrix_complex **lattice);
+int measure_polyakov(PAR *par, double *result, double *lattice, char *file_name);
+int measure(PAR *par, gsl_matrix *results, double *lattice, char *file_name);
+int measure_aa_a2a(PAR *par, double *results, double *lattice);
+int measure_action_l(PAR *par, double *lattice, double *action);
+int measure_action_r(PAR *par, double *lattice, double *action);
+int unitarize_lattice(PAR *par, double *lattice);
+int update_lattice(PAR *par, double *lattice, double *su3, double *acceptance);
+int init_su3(PAR *par, double *su3);
+void init_lattice(PAR *par, double *lattice, double *su3);
+int simulate(PAR *par, double *lattice);
 int read_args(PAR *par, char *arg);
 int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double epsilon);
-double gauge_inv(PAR *par, gsl_matrix_complex **lattice);
-int gauge_transform_lattice(PAR *par, gsl_matrix_complex **lattice);
-void measure_tadpole(PAR *par, gsl_matrix_complex **lattice, double *tadpole_result);
-int measure_tadpole_alt(PAR *par, gsl_matrix_complex **lattice, double *tadpole_result);
+double gauge_inv(PAR *par, double *lattice);
+int gauge_transform_lattice(PAR *par, double *lattice);
+void measure_tadpole(PAR *par, double *lattice, double *tadpole_result);
+int measure_tadpole_alt(PAR *par, double *lattice, double *tadpole_result);
 
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
  * starting point and save it under m_product*/
 void lattice_line_product(
     const PAR *par, 
-    gsl_matrix_complex **lattice, 
+    double *lattice, 
     int i_start, 
     int j_start, 
     int k_start, 
@@ -84,7 +84,7 @@ void lattice_line_product(
 /* calculates a planar Wilson-loop */
 int lattice_loop_rect(
     const PAR *par, 
-    gsl_matrix_complex **lattice, 
+    double *lattice, 
     int i_start, 
     int j_start, 
     int k_start, 
