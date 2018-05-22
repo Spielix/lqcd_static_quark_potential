@@ -2,19 +2,19 @@
 
 int sign(double x);
 
-#ifdef MAIN__RAND_SU2_C__
+/* #ifdef MAIN__RAND_SU2_C__
 int main(){
     PAR *par = NULL;
-    /* allocate memory for simulation parameters */
-     par = malloc(sizeof(PAR));
+   */ /* allocate memory for simulation parameters */
+  /*   par = malloc(sizeof(PAR));
      if (par == NULL) {
         printf("Error: Failed allocating memory for simulation parameters. Exiting...\n");
         exit(EXIT_FAILURE);
      }
-
+*/
     
     /* initialize simulation parameters with standard values */
-    par->L = 0;
+  /*  par->L = 0;
     par->seed = 0;
     par->n_configs = 10;
     par->gen_type = gsl_rng_ranlxs0;
@@ -54,67 +54,82 @@ int main(){
 	}
 	return 0;
  }
- #endif
+ #endif */
 
 int init_su2(PAR *par, double *su2){
-	gsl_matrix_complex *s = calloc(4 * 8, sizeof(double));
-	gsl_complex I = gsl_complex_rect(0,1);
-	gsl_complex UNIT = gsl_complex_rect(1,0);
-	/*init Pauli Matrices*/
-	gsl_matrix_complex_set(gsl_matrix_complex_view_array(s, 2, 2), 0, 0, UNIT);
-	gsl_matrix_complex_set(gsl_matrix_complex_view_array(s, 2, 2), 1, 1, UNIT);
-	gsl_matrix_complex_set(gsl_matrix_complex_view_array(s + 8, 2, 2), 0, 1, UNIT);
-	gsl_matrix_complex_set(gsl_matrix_complex_view_array(s + 8, 2, 2), 1, 0, UNIT);
-	gsl_matrix_complex_set(gsl_matrix_complex_view_array(s + 16, 2, 2), 0, 1, gsl_complex_mul_real(I,-1));
-	gsl_matrix_complex_set(gsl_matrix_complex_view_array(s + 16, 2, 2), 1, 0, I);
-	gsl_matrix_complex_set(gsl_matrix_complex_view_array(s + 24, 2, 2), 0, 0, gsl_complex_mul_real(UNIT, -1));
-	gsl_matrix_complex_set(gsl_matrix_complex_view_array(s + 24, 2, 2), 1, 1, UNIT);
+	double pauli[32] = {0};
+	gsl_complex 
+        z_i = gsl_complex_rect(0., 1.), 
+	    z_one = gsl_complex_rect(1., 0.);
 	
-	double r[4];
+    /* initialize Pauli matrices */
+    gsl_matrix_complex_view m_pauli_view = gsl_matrix_complex_view_array(pauli, 2, 2);
+	gsl_matrix_complex_set(&m_pauli_view.matrix, 0, 0, z_one);
+	gsl_matrix_complex_set(&m_pauli_view.matrix, 1, 1, z_one);
+
+    m_pauli_view = gsl_matrix_complex_view_array(pauli + 8, 2, 2);
+	gsl_matrix_complex_set(&m_pauli_view.matrix, 0, 1, z_one);
+	gsl_matrix_complex_set(&m_pauli_view.matrix, 1, 0, z_one);
+
+    m_pauli_view = gsl_matrix_complex_view_array(pauli + 16, 2, 2);
+	gsl_matrix_complex_set(&m_pauli_view.matrix, 0, 1, gsl_complex_mul_real(z_i, -1.));
+	gsl_matrix_complex_set(&m_pauli_view.matrix, 1, 0, z_i);
+
+    m_pauli_view = gsl_matrix_complex_view_array(pauli + 24, 2, 2);
+	gsl_matrix_complex_set(&m_pauli_view.matrix, 0, 0, gsl_complex_mul_real(z_one, -1.));
+	gsl_matrix_complex_set(&m_pauli_view.matrix, 1, 1, z_one);
+	
+	double r[4] = {0};
 	double r_abs;
 	
-	gsl_complex *temp = calloc(4 * 8, sizeof(double));
-	
-	for(int m = 0; m < par->n_su2 / 2; m++){
+	double m_temp_arr[32] = {0};
+	gsl_matrix_complex_view m_temp_view, m_su2_view, m_su2_dagg_view;
+
+	for (int m = 0; m < par->n_su2 / 2; m++) {
 		
-		for(int i = 0; i < 4; i++){
-			
+		for (int i = 0; i < 4; i++) 
 			r[i] = gsl_rng_uniform_pos(par->ran_gen) - 0.5;
-		}
-		r_abs = sqrt(r[1] * r[1] + r[2] * r[2] + r[3] * r[3]);
 		
-		for(int i = 0; i < 4; i++){
+        r_abs = sqrt(r[1] * r[1] + r[2] * r[2] + r[3] * r[3]);
+		
+		for (int i = 0; i < 4; i++) {
+            m_temp_view = gsl_matrix_complex_view_array(m_temp_arr + 8 * i, 2, 2);
+            m_pauli_view = gsl_matrix_complex_view_array(pauli + 8 * i, 2, 2);
 			gsl_matrix_complex_memcpy(
-                gsl_matrix_complex_view_array(temp + 8 * i, 2, 2), 
-                gsl_matrix_complex_view_array(s + 8 * i, 2, 2)
+                &m_temp_view.matrix, 
+                &m_pauli_view.matrix 
             );
 		}
+        m_temp_view = gsl_matrix_complex_view_array(m_temp_arr, 2, 2);
 		gsl_matrix_complex_scale(
-            gsl_matrix_complex_view_array(temp, 2, 2), 
-            gsl_complex_rect(/*sign(r[0])* */sqrt(1-par->eps*par->eps), 0)
+            &m_temp_view.matrix, 
+            gsl_complex_rect( /* sign(r[0]) * */ sqrt(1. - par->eps * par->eps), 0.)
         );
-		for(int i = 1; i < 4; i++){
+		for (int i = 1; i < 4; i++) {
+            m_temp_view = gsl_matrix_complex_view_array(m_temp_arr + 8 * i, 2, 2);
 			gsl_matrix_complex_scale(
-                gsl_matrix_complex_view_array(temp + 8 * i, 2, 2), 
-                gsl_complex_rect(0, par->eps*r[i]/r_abs)
+                &m_temp_view.matrix, 
+                gsl_complex_rect(0., par->eps * r[i] / r_abs)
             );
 		}
-		for(int i = 0; i < 4; i++){
+        m_su2_view = gsl_matrix_complex_view_array(su2 + 8 * m, 2, 2);
+		for (int i = 0; i < 4; i++) {
+            m_temp_view = gsl_matrix_complex_view_array(m_temp_arr + 8 * i, 2, 2);
 			gsl_matrix_complex_add(
-                gsl_matrix_complex_view_array(su2 + 8 * m, 2, 2), 
-                gsl_matrix_complex_view_array(temp + 8 * i, 2, 2)
+                &m_su2_view.matrix, 
+                &m_temp_view.matrix
             );
 		}
 	}
-	for(int m = par->n_su2 / 2; m < par->n_su2; m++){
+	for (int m = par->n_su2 / 2; m < par->n_su2; m++) {
+        m_su2_dagg_view = gsl_matrix_complex_view_array(su2 + 8 * m, 2, 2);
+        m_su2_view = gsl_matrix_complex_view_array(su2 + 8 * m - par->n_su2 / 2, 2, 2);
 		psl_matrix_complex_dagger_memcpy(
-            gsl_matrix_complex_view_array(su2 + 8 * m, 2, 2), 
-            gsl_matrix_complex_view_array(su2 + 8 * m-par->n_su2 / 2, 2, 2)
+            &m_su2_dagg_view.matrix, 
+            &m_su2_view.matrix
         );
 	}
 	
-    free(s);
-	free(temp);
 	return 0;
 }
 
@@ -128,35 +143,59 @@ int sign(double x)
 }
 
 int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double epsilon){
-	gsl_matrix_complex *unity = gsl_matrix_complex_calloc(2,2);
-	gsl_matrix_complex_set(unity, 0, 0, gsl_complex_rect(1,0));
-	gsl_matrix_complex_set(unity, 1, 1, gsl_complex_rect(1,0));
-	gsl_matrix_complex *check_unitary = gsl_matrix_complex_calloc(2,2);
+	gsl_matrix_complex *m_unity = gsl_matrix_complex_alloc(2, 2);
+	gsl_matrix_complex_set_identity(m_unity);
+
+	gsl_matrix_complex *check_unitary = gsl_matrix_complex_calloc(2, 2);
 	gsl_blas_zgemm(
         CblasNoTrans, 
         CblasNoTrans, 
-        gsl_complex_rect(1,0), 
+        gsl_complex_rect(1, 0), 
         matrix, 
         dagger, 
-        gsl_complex_rect(0,0), 
+        gsl_complex_rect(0, 0), 
         check_unitary
     );
-	gsl_matrix_complex_sub(unity, check_unitary);
+	gsl_matrix_complex_sub(m_unity, check_unitary);
 	int ret = 0;
-	for(int i = 0; i < 2; i++){
-		for(int j = 0; j < 2; j++){
-			if(gsl_complex_abs(gsl_matrix_complex_get(unity, i, j)) > epsilon){
+	for (int i = 0; i < 2; i++){
+		for (int j = 0; j < 2; j++){
+			if (gsl_complex_abs(gsl_matrix_complex_get(m_unity, i, j)) > epsilon){
 				ret++;
 				break;
 			}
 		}
 	}
-	double tmp = gsl_complex_abs(gsl_complex_sub(
-        gsl_complex_mul(gsl_matrix_complex_get(matrix,0,0), gsl_matrix_complex_get(matrix,1,1)), 
-        gsl_complex_mul(gsl_matrix_complex_get(matrix,1,0), gsl_matrix_complex_get(matrix,0,1))
-    ));
+	double tmp = gsl_complex_abs(
+        gsl_complex_sub(
+            gsl_complex_mul(
+                gsl_matrix_complex_get(
+                    matrix, 
+                    0, 
+                    0
+                ), 
+                gsl_matrix_complex_get(
+                    matrix, 
+                    1, 
+                    1
+                )
+            ), 
+            gsl_complex_mul(
+                gsl_matrix_complex_get(
+                    matrix, 
+                    1, 
+                    0
+                ), 
+                gsl_matrix_complex_get(
+                    matrix, 
+                    0, 
+                    1
+                )
+            )
+        )
+    );
 	if(tmp > 1+epsilon) ret++;
-	gsl_matrix_complex_free(unity);
+	gsl_matrix_complex_free(m_unity);
 	gsl_matrix_complex_free(check_unitary);
 	return ret;
 }
@@ -205,18 +244,26 @@ static inline int gauge_periodic_ind(int i, int j, int k, int l, int dagger, int
 
 void init_gauge(PAR *par, double *gauge, double *su2) {
     /* initialize all independent links with random SU(2) matrices */
+    gsl_matrix_complex_view m_gauge_view, m_su2_view, m_gauge_dagg_view;
+
     for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
                     
+                    m_gauge_view = gsl_matrix_complex_view_array(
+                        gauge + 8 * gauge_ind(i, j, k, l, 0, par->L), 
+                        2, 
+                        2
+                    );
+                    m_su2_view = gsl_matrix_complex_view_array(
+                        su2 + 8 * (int)(gsl_rng_uniform(par->ran_gen) * par->n_su2), 
+                        2, 
+                        2
+                    );
                     gsl_matrix_complex_memcpy(
-                        gsl_matrix_complex_view_array(gauge + 8 * gauge_ind(i, j, k, l, 0, par->L), 2, 2), 
-                        gsl_matrix_complex_view_array(
-                            su2 + 8 * (int)(gsl_rng_uniform(par->ran_gen) * par->n_su2), 
-                            2, 
-                            2
-                        )
+                        &m_gauge_view.matrix, 
+                        &m_su2_view.matrix 
                     );
                 }
             }
@@ -229,9 +276,19 @@ void init_gauge(PAR *par, double *gauge, double *su2) {
             for (int k = 0; k < par->L; k++) {
                 for (int l = 0; l < par->L; l++) {
                     
+                    m_gauge_dagg_view = gsl_matrix_complex_view_array(
+                        gauge + 8 * gauge_ind(i, j, k, l, 1, par->L), 
+                        2, 
+                        2
+                    );
+                    m_gauge_view = gsl_matrix_complex_view_array(
+                        gauge + 8 * gauge_ind(i, j, k, l, 0, par->L), 
+                        2, 
+                        2
+                    );
                     psl_matrix_complex_dagger_memcpy(
-                        gsl_matrix_complex_view_array(gauge + 8 * gauge_ind(i, j, k, l, 1, par->L), 2, 2), 
-                        gsl_matrix_complex_view_array(gauge + 8 * gauge_ind(i, j, k, l, 0, par->L), 2, 2)
+                        &m_gauge_dagg_view.matrix, 
+                        &m_gauge_view.matrix 
                     );
                 }
             }
@@ -239,8 +296,9 @@ void init_gauge(PAR *par, double *gauge, double *su2) {
     }
 }
 
-double gauge_inv(PAR *par, gsl_complex *lattice){
-	gsl_complex *gauge = calloc(par->L_t * par->L * par->L * par->L * 8 * 8, sizeof(double)), 
+/* double gauge_inv(PAR *par, gsl_complex *lattice){
+	gsl_complex 
+        *gauge = calloc(par->L_t * par->L * par->L * par->L * 8 * 8, sizeof(double)), 
         *gauged_lattice = calloc(par->L_t * par->L * par->L * par->L * 8 * 8, sizeof(double));
 	for(int i = 0; i < par->L_t * par->L * par->L * par->L * 8; i++) {
 		gsl_matrix_complex_memcpy(
@@ -337,7 +395,7 @@ double gauge_inv(PAR *par, gsl_complex *lattice){
 	free(gauge);
 	free(gauged_lattice);
 	return fabs(action[0]-action[1]);
-}
+} */
 
 /* applicates a random local gauge transformation onto the lattice. all operators should be invariant under this
  * transformation */
@@ -353,6 +411,7 @@ int gauge_transform_lattice(PAR *par, double *lattice){
         free(gauge);
         return 1;
     }
+    gsl_matrix_complex_view m_latt_view, m_latt_dagg_view, m_gauge_view;
 
 	init_su2(par, su2_gauge);
 	init_gauge(par, gauge, su2_gauge);
@@ -363,44 +422,45 @@ int gauge_transform_lattice(PAR *par, double *lattice){
 					
                     for(int dir = 0; dir < 4; dir++){
 						
+                        m_latt_view = gsl_matrix_complex_view_array(
+                            lattice + 8 * ind(a, b, c, d, dir, par->L), 
+                            2, 
+                            2
+                        );
+                        m_gauge_view = gsl_matrix_complex_view_array(
+                            gauge + 8 * gauge_ind(a, b, c, d, 0, par->L), 
+                            2, 
+                            2
+                        );
                         msl_mat_mul(
-							gsl_matrix_complex_view_array(
-                                gauge + 8 * gauge_ind(a, b, c, d, 0, par->L), 
-                                2, 
-                                2
-                            ),
-							gsl_matrix_complex_view_array(
-                                lattice + 8 * ind(a, b, c, d, dir, par->L), 
-                                2, 
-                                2
-                            ),
-							par->m_workspace);
+							&m_gauge_view.matrix,
+							&m_latt_view.matrix,
+							par->m_workspace
+                        );
+                        m_gauge_view = gsl_matrix_complex_view_array(
+                            gauge + 8 * gauge_periodic_ind(
+                                a + (dir == 0),
+                                b + (dir == 1),
+                                c + (dir == 2),
+                                d + (dir == 3), 
+                                1, 
+                                par->L_t, 
+                                par->L
+                            ), 
+                            2, 
+                            2
+                        );
 						msl_mat_mul(
 							par->m_workspace,
-							gsl_matrix_complex_view_array(
-                                gauge + 8 * gauge_periodic_ind(
-                                    a + (dir == 0),
-                                    b + (dir == 1),
-                                    c + (dir == 2),
-                                    d + (dir == 3), 
-                                    1, 
-                                    par->L_t, 
-                                    par->L
-                                ), 
-                                2, 
-                                2
-                            ),
-							gsl_matrix_complex_view_array(
-                                lattice + 8 * ind(a, b, c, d, dir, par->L), 
-                                2, 
-                                2
-                            )
+							&m_gauge_view.matrix,
+							&m_latt_view.matrix
                         );
 					}
 				}
 			}
 		}
 	}
+
 	for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
             for (int k = 0; k < par->L; k++) {
@@ -408,25 +468,27 @@ int gauge_transform_lattice(PAR *par, double *lattice){
                     
                     for (int dir_dagger = 4; dir_dagger < 8; dir_dagger++) {
                         
-                        psl_matrix_complex_dagger_memcpy(
-                            gsl_matrix_complex_view_array(
-                                lattice + 8 * ind(i, j, k, l, dir_dagger, par->L), 
-                                2, 
-                                2
+                        m_latt_dagg_view = gsl_matrix_complex_view_array(
+                            lattice + 8 * ind(i, j, k, l, dir_dagger, par->L), 
+                            2, 
+                            2
+                        );
+                        m_latt_view = gsl_matrix_complex_view_array(
+                            lattice + 8 * periodic_ind(
+                                i - (dir_dagger == 4), 
+                                j - (dir_dagger == 5), 
+                                k - (dir_dagger == 6), 
+                                l - (dir_dagger == 7), 
+                                dir_dagger - 4, 
+                                par->L_t, 
+                                par->L
                             ), 
-                            gsl_matrix_complex_view_array(
-                                lattice + 8 * periodic_ind(
-                                    i - (dir_dagger == 4), 
-                                    j - (dir_dagger == 5), 
-                                    k - (dir_dagger == 6), 
-                                    l - (dir_dagger == 7), 
-                                    dir_dagger - 4, 
-                                    par->L_t, 
-                                    par->L
-                                ), 
-                                2, 
-                                2
-                            )
+                            2, 
+                            2
+                        );
+                        psl_matrix_complex_dagger_memcpy(
+                            &m_latt_dagg_view.matrix, 
+                            &m_latt_view.matrix
                         );
                     }
                 }
