@@ -56,7 +56,7 @@ int main(){
  }
  #endif */
 
-int init_su2(PAR *par, double *su2){
+void init_su2(PAR *par, double *su2){
 	double pauli[32] = {0};
 	gsl_complex 
         z_i = gsl_complex_rect(0., 1.), 
@@ -129,8 +129,6 @@ int init_su2(PAR *par, double *su2){
             &m_su2_view.matrix
         );
 	}
-	
-	return 0;
 }
 
 
@@ -143,10 +141,15 @@ int sign(double x)
 }
 
 int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double epsilon){
-	gsl_matrix_complex *m_unity = gsl_matrix_complex_alloc(2, 2);
-	gsl_matrix_complex_set_identity(m_unity);
+	double 
+        m_unity[8] = {0},
+        m_check_unitary[8] = {0};
+    gsl_matrix_complex_view 
+        m_unity_view = gsl_matrix_complex_view_array(m_unity, 2, 2),
+        m_check_unitary_view = gsl_matrix_complex_view_array(m_check_unitary, 2, 2);
 
-	gsl_matrix_complex *check_unitary = gsl_matrix_complex_calloc(2, 2);
+	gsl_matrix_complex_set_identity(&m_unity_view.matrix);
+
 	gsl_blas_zgemm(
         CblasNoTrans, 
         CblasNoTrans, 
@@ -154,13 +157,13 @@ int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double eps
         matrix, 
         dagger, 
         gsl_complex_rect(0, 0), 
-        check_unitary
+        &m_check_unitary_view.matrix
     );
-	gsl_matrix_complex_sub(m_unity, check_unitary);
+	gsl_matrix_complex_sub(&m_unity_view.matrix, &m_check_unitary_view.matrix);
 	int ret = 0;
 	for (int i = 0; i < 2; i++){
 		for (int j = 0; j < 2; j++){
-			if (gsl_complex_abs(gsl_matrix_complex_get(m_unity, i, j)) > epsilon){
+			if (gsl_complex_abs(gsl_matrix_complex_get(&m_unity_view.matrix, i, j)) > epsilon){
 				ret++;
 				break;
 			}
@@ -195,8 +198,6 @@ int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double eps
         )
     );
 	if(tmp > 1+epsilon) ret++;
-	gsl_matrix_complex_free(m_unity);
-	gsl_matrix_complex_free(check_unitary);
 	return ret;
 }
 
@@ -501,6 +502,4 @@ int gauge_transform_lattice(PAR *par, double *lattice){
 	
     return 0;
 }
-
-
 

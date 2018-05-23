@@ -39,7 +39,7 @@ typedef struct PAR {
 } PAR;
 
 
-int init_su2(PAR *par, double *su2);
+void init_su2(PAR *par, double *su2);
 void psl_matrix_complex_dagger(gsl_matrix_complex *m);
 void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_complex *src);
 void psl_matrix_complex_product_3_add(
@@ -49,23 +49,18 @@ void psl_matrix_complex_product_3_add(
     const gsl_matrix_complex *matrix_3, 
     gsl_matrix_complex *m_sum
 );
-int psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
+void psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
 int measure_polyakov(PAR *par, double *result, double *lattice, char *file_name);
 int measure(PAR *par, gsl_matrix *results, double *lattice, char *file_name);
-int measure_aa_a2a(PAR *par, double *results, double *lattice);
-int measure_action_l(PAR *par, double *lattice, double *action);
-int measure_action_r(PAR *par, double *lattice, double *action);
-int unitarize_lattice(PAR *par, double *lattice);
-int update_lattice(PAR *par, double *lattice, double *su3, double *acceptance);
-int init_su3(PAR *par, double *su3);
+void measure_action_l(PAR *par, double *lattice, double *action);
+void measure_action_r(PAR *par, double *lattice, double *action);
+void unitarize_lattice(PAR *par, double *lattice);
+void update_lattice(PAR *par, double *lattice, double *su3, double *acceptance);
 void init_lattice(PAR *par, double *lattice, double *su3);
 int simulate(PAR *par, double *lattice);
 int read_args(PAR *par, char *arg);
 int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double epsilon);
-double gauge_inv(PAR *par, double *lattice);
 int gauge_transform_lattice(PAR *par, double *lattice);
-void measure_tadpole(PAR *par, double *lattice, double *tadpole_result);
-int measure_tadpole_alt(PAR *par, double *lattice, double *tadpole_result);
 
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
  * starting point and save it under m_product*/
@@ -82,7 +77,7 @@ void lattice_line_product(
 );
 
 /* calculates a planar Wilson-loop */
-int lattice_loop_rect(
+void lattice_loop_rect(
     const PAR *par, 
     double *lattice, 
     int i_start, 
