@@ -416,7 +416,9 @@ int simulate(PAR *par, double *lattice) {
             return 0;
         } */
     }
-    acceptance /= (double)par->n_therm * (double)par->L_t * pow((double)par->L, 3.) * 4. * (double)par->n_hits;
+    acceptance /= (double)par->n_therm * 
+        (double)par->L_t * pow((double)par->L, 3.) * 
+        4. * (double)par->n_hits;
     printf("Thermalization-acceptance: %3.2f\n", acceptance);
     acceptance = 0.;
 
