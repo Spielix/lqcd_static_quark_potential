@@ -44,10 +44,35 @@ void psl_matrix_complex_dagger(gsl_matrix_complex *m);
 void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_complex *src);
 void psl_matrix_complex_product_3_add(
     PAR *par, 
+    int dag_1, 
+    int dag_2, 
+    int dag_3, 
     const gsl_matrix_complex *matrix_1, 
     const gsl_matrix_complex *matrix_2, 
     const gsl_matrix_complex *matrix_3, 
     gsl_matrix_complex *m_sum
+);
+void psl_matrix_complex_product_4(
+    PAR *par,
+    int dag_1, 
+    int dag_2, 
+    int dag_3, 
+    int dag_4, 
+    const gsl_matrix_complex *matrix_1, 
+    const gsl_matrix_complex *matrix_2, 
+    const gsl_matrix_complex *matrix_3, 
+    const gsl_matrix_complex *matrix_4,
+    gsl_matrix_complex *m_result
+);
+double plaquette_op(
+    PAR *par,
+    double *lattice, 
+    int i_start, 
+    int j_start, 
+    int k_start, 
+    int l_start, 
+    int dir_1, 
+    int dir_2
 );
 void psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
 int measure_polyakov(PAR *par, double *result, double *lattice, char *file_name);

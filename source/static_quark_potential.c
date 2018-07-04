@@ -2,7 +2,8 @@
 // #define TADP
 // #define GAUGE
 #define POLYA
-// #define POLYA_GAUGE
+#define POLYA_GAUGE
+#define DEBUG
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le);
@@ -129,7 +130,7 @@ int read_args(PAR *par, char *arg) {
         
         /* allocate memory for the lattice (link matrices) */
         if (par->L_t) {
-            num_of_links = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)8;
+            num_of_links = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)4;
             if (par->L_t > par->L) 
                 temp_lat_size = num_of_links * (unsigned long)par->L_t;
             else 
@@ -162,7 +163,7 @@ int read_args(PAR *par, char *arg) {
         
         /* allocate memory for the lattice (link matrices) */
         if (par->L) {
-            num_of_links = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)8;
+            num_of_links = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)4;
             if (par->L_t > par->L) 
                 temp_lat_size = num_of_links * (unsigned long)par->L_t;
             else 
@@ -640,7 +641,7 @@ int simulate(PAR *par, double *lattice) {
 
 /* calculate the position of a specific link in the array */
 static inline int ind(int i, int j, int k, int l, int dir, int le) {
-    return (((i * le + j) * le + k) * le + l) * 8 + dir;
+    return (((i * le + j) * le + k) * le + l) * 4 + dir;
 }
 
 /* calculate the position of a specific link in the array, while applying periodic boundary conditions to all
@@ -650,12 +651,12 @@ static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, in
         le + ((j + le) % le)) * 
         le + ((k + le) % le)) * 
         le + ((l + le) % le)) * 
-        8 + dir;
+        4 + dir;
 }
 
 /* calculate the position of a specific link in the temp_lat array */
 static inline int temp_ind(int i, int j, int k, int l, int dir, int ll, int le_max, int le) {
-    return ((((i * le + j) * le + k) * le + l) * 8 + dir) * le_max + ll;
+    return ((((i * le + j) * le + k) * le + l) * 4 + dir) * le_max + ll;
 }
 
 /* calculate the position of a specific link in the temp_lat array, 
@@ -675,7 +676,7 @@ static inline int temp_periodic_ind(
         le + ((j + le) % le)) * 
         le + ((k + le) % le)) * 
         le + ((l + le) % le)) * 
-        8 + dir) * 
+        4 + dir) *
         le_max + ll;
 }
 
@@ -726,6 +727,9 @@ void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_compl
  * matrix */
 void psl_matrix_complex_product_3_add(
     PAR *par,
+    int dag_1,
+    int dag_2, 
+    int dag_3, 
     const gsl_matrix_complex *matrix_1, 
     const gsl_matrix_complex *matrix_2, 
     const gsl_matrix_complex *matrix_3, 
@@ -736,8 +740,8 @@ void psl_matrix_complex_product_3_add(
         z_one = gsl_complex_rect(1., 0.);
 
     gsl_blas_zgemm(
-        CblasNoTrans, 
-        CblasNoTrans, 
+        dag_1 ? CblasConjTrans : CblasNoTrans, 
+        dag_2 ? CblasConjTrans : CblasNoTrans, 
         z_one, 
         matrix_1, 
         matrix_2, 
@@ -746,7 +750,7 @@ void psl_matrix_complex_product_3_add(
     );
     gsl_blas_zgemm(
         CblasNoTrans, 
-        CblasNoTrans, 
+        dag_3 ? CblasConjTrans : CblasNoTrans, 
         z_one, 
         par->m_workspace, 
         matrix_3, 
@@ -758,6 +762,10 @@ void psl_matrix_complex_product_3_add(
 /* calculates the product of 4 matrices */
 void psl_matrix_complex_product_4(
     PAR *par,
+    int dag_1, 
+    int dag_2, 
+    int dag_3, 
+    int dag_4, 
     const gsl_matrix_complex *matrix_1, 
     const gsl_matrix_complex *matrix_2, 
     const gsl_matrix_complex *matrix_3, 
@@ -768,8 +776,8 @@ void psl_matrix_complex_product_4(
                     z_one = gsl_complex_rect(1., 0.);
 
     gsl_blas_zgemm(
-        CblasNoTrans, 
-        CblasNoTrans, 
+        dag_1 ? CblasConjTrans : CblasNoTrans, 
+        dag_2 ? CblasConjTrans : CblasNoTrans, 
         z_one, 
         matrix_1, 
         matrix_2, 
@@ -778,7 +786,7 @@ void psl_matrix_complex_product_4(
     );
     gsl_blas_zgemm(
         CblasNoTrans, 
-        CblasNoTrans, 
+        dag_3 ? CblasConjTrans : CblasNoTrans, 
         z_one, 
         m_result, 
         matrix_3, 
@@ -787,7 +795,7 @@ void psl_matrix_complex_product_4(
     );
     gsl_blas_zgemm(
         CblasNoTrans, 
-        CblasNoTrans, 
+        dag_4 ? CblasConjTrans : CblasNoTrans, 
         z_one, 
         par->m_workspace, 
         matrix_4, 
@@ -796,7 +804,102 @@ void psl_matrix_complex_product_4(
     );
 }
 
-/* calculates the product of 6 matrices */
+/* calculates a plaquette */
+double plaquette_op(
+    PAR *par,
+    double *lattice, 
+    int i_start, 
+    int j_start, 
+    int k_start, 
+    int l_start, 
+    int dir_1, 
+    int dir_2
+) {
+    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
+                    z_one = gsl_complex_rect(1., 0.);
+    gsl_complex z_temp = gsl_complex_rect(0., 0.);
+
+    double m_temp[8] = {0};
+    gsl_matrix_complex_view 
+        m_temp_view = gsl_matrix_complex_view_array(m_temp, 2, 2), 
+        m_latt_view_1 = gsl_matrix_complex_view_array(
+            lattice + 8 * ind(i_start, j_start, k_start, l_start, dir_1, par->L), 
+            2, 
+            2
+        ),
+        m_latt_view_2 = gsl_matrix_complex_view_array(
+            lattice + 8 * periodic_ind(
+                i_start + ((dir_1 == 0) ? 1 : 0), 
+                j_start + ((dir_1 == 1) ? 1 : 0), 
+                k_start + ((dir_1 == 2) ? 1 : 0), 
+                l_start + ((dir_1 == 3) ? 1 : 0),
+                dir_2, 
+                par->L_t, 
+                par->L
+            ), 
+            2, 
+            2
+        ), 
+        m_latt_view_3 = gsl_matrix_complex_view_array(
+            lattice + 8 * periodic_ind(
+                i_start + ((dir_2 == 0) ? 1 : 0), 
+                j_start + ((dir_2 == 1) ? 1 : 0), 
+                k_start + ((dir_2 == 2) ? 1 : 0), 
+                l_start + ((dir_2 == 3) ? 1 : 0), 
+                dir_1, 
+                par->L_t, 
+                par->L
+            ),
+            2, 
+            2
+        ),
+        m_latt_view_4 = gsl_matrix_complex_view_array(
+            lattice + 8 * ind(
+                i_start, 
+                j_start, 
+                k_start, 
+                l_start, 
+                dir_2, 
+                par->L
+            ), 
+            2, 
+            2
+        );
+
+    
+    gsl_blas_zgemm(
+        CblasNoTrans, 
+        CblasNoTrans, 
+        z_one, 
+        &m_latt_view_1.matrix, 
+        &m_latt_view_2.matrix, 
+        z_zero, 
+        &m_temp_view.matrix
+    );
+    gsl_blas_zgemm(
+        CblasNoTrans, 
+        CblasConjTrans, 
+        z_one, 
+        &m_temp_view.matrix, 
+        &m_latt_view_3.matrix, 
+        z_zero, 
+        par->m_workspace
+    );
+    gsl_blas_zgemm(
+        CblasNoTrans, 
+        CblasConjTrans, 
+        z_one, 
+        par->m_workspace, 
+        &m_latt_view_4.matrix, 
+        z_zero, 
+        &m_temp_view.matrix
+    );
+    for (int m = 0; m < 2; m++)     /* trace */
+        z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(&m_temp_view.matrix, m, m));
+    return GSL_REAL(z_temp) / 2.;
+}
+
+/* calculates the product of 6 matrices 
 void psl_matrix_complex_product_6(
     PAR *par,
     const gsl_matrix_complex *matrix_1, 
@@ -836,7 +939,7 @@ void psl_matrix_complex_product_6(
         z_zero, 
         m_result
     );
-}
+} */
 
 /* calculates a planar Wilson-loop */
 void lattice_loop_rect(
@@ -875,10 +978,10 @@ void lattice_loop_rect(
     lattice_line_product(
         par, 
         lattice, 
-        i_start + L_1 * (dir_1 == 0), 
-        j_start + L_1 * (dir_1 == 1), 
-        k_start + L_1 * (dir_1 == 2), 
-        l_start + L_1 * (dir_1 == 3), 
+        i_start + ((dir_1 == 0) ? L_1 : 0), 
+        j_start + ((dir_1 == 1) ? L_1 : 0), 
+        k_start + ((dir_1 == 2) ? L_1 : 0), 
+        l_start + ((dir_1 == 3) ? L_1 : 0), 
         dir_2, 
         L_2, 
         &m_temp_view.matrix
@@ -886,10 +989,10 @@ void lattice_loop_rect(
     lattice_line_product(
         par, 
         lattice, 
-        i_start + L_1 * (dir_1 == 0) + L_2 * (dir_2 == 0), 
-        j_start + L_1 * (dir_1 == 1) + L_2 * (dir_2 == 1), 
-        k_start + L_1 * (dir_1 == 2) + L_2 * (dir_2 == 2), 
-        l_start + L_1 * (dir_1 == 3) + L_2 * (dir_2 == 3), 
+        i_start + ((dir_2 == 0) ? L_2 : 0), 
+        j_start + ((dir_2 == 1) ? L_2 : 0), 
+        k_start + ((dir_2 == 2) ? L_2 : 0), 
+        l_start + ((dir_2 == 3) ? L_2 : 0), 
         dir_1 + 4, 
         L_1, 
         &m_temp_view.matrix
@@ -897,10 +1000,10 @@ void lattice_loop_rect(
     lattice_line_product(
         par, 
         lattice, 
-        i_start + L_2 * (dir_2 == 0), 
-        j_start + L_2 * (dir_2 == 1), 
-        k_start + L_2 * (dir_2 == 2), 
-        l_start + L_2 * (dir_2 == 3), 
+        i_start, 
+        j_start, 
+        k_start, 
+        l_start, 
         dir_2 + 4, 
         L_2, 
         &m_temp_view.matrix
@@ -929,7 +1032,8 @@ void lattice_line_product_old(
                     z_one = gsl_complex_rect(1., 0.);
     gsl_matrix_complex_view m_view;
     int sign, 
-        dir_abs;
+        dir_abs, 
+        dag;
 #ifdef DEBUG
     if ((dir < 0) || (dir >= 8)) 
         printf("Warning: lattice_line_product was used with dir not in the right range. Something probably went wrong.\n");
@@ -937,24 +1041,26 @@ void lattice_line_product_old(
     if (dir < 4) { 
         sign = 1;
         dir_abs = dir;
+        dag = 0;
     } else {
         sign = -1;
         dir_abs = dir - 4;
+        dag = 1;
     } 
 
     for (int x = 0; x < n_matrices; x++) {
         m_view = gsl_matrix_complex_view_array(lattice + 8 * periodic_ind(
-            i_start + sign * x * (dir_abs == 0), 
-            j_start + sign * x * (dir_abs == 1), 
-            k_start + sign * x * (dir_abs == 2), 
-            l_start + sign * x * (dir_abs == 3), 
-            dir, 
+            i_start + ((dir_abs == 0) ? sign * x - dag : 0), 
+            j_start + ((dir_abs == 1) ? sign * x - dag : 0), 
+            k_start + ((dir_abs == 2) ? sign * x - dag : 0), 
+            l_start + ((dir_abs == 3) ? sign * x - dag : 0), 
+            dir_abs, 
             par->L_t, 
             par->L
         ), 2, 2);
         gsl_blas_zgemm(
             CblasNoTrans, 
-            CblasNoTrans, 
+            dag ? CblasConjTrans : CblasNoTrans, 
             z_one, 
             m_product, 
             &m_view.matrix, 
@@ -965,7 +1071,7 @@ void lattice_line_product_old(
     }
 }
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
- * starting point and save it under m_product */
+ * starting point and save it under m_product. --> Only works in Wilson-measurement loop! <-- */
 void lattice_line_product(
     const PAR *par, 
     double *lattice, 
@@ -981,6 +1087,7 @@ void lattice_line_product(
                     z_one = gsl_complex_rect(1., 0.);
     int sign, 
         dir_abs,
+        dag, 
         temp_index,
         last_temp_index,
         L_max;
@@ -988,24 +1095,25 @@ void lattice_line_product(
     if ((dir < 0) || (dir >= 8)) 
         printf("Warning: lattice_line_product was used with dir not in the right range. Something probably went wrong.\n");
 #endif
+    /* get some more practical parameters */
     if (dir < 4) { 
         sign = 1;
         dir_abs = dir;
+        dag = 0;
     } else {
         sign = -1;
         dir_abs = dir - 4;
+        dag = 1;
     }
-    if (par->L_t > par->L) 
-        L_max = par->L_t;
-    else 
-        L_max = par->L;
+    L_max = (par->L_t > par->L) ? par->L_t : par->L;
 
+    /* generate index of result matrix (not daggered) */
     temp_index = temp_periodic_ind(
         i_start, 
         j_start, 
         k_start, 
         l_start, 
-        dir, 
+        dir_abs, 
         n_matrices - 1, 
         L_max, 
         par->L_t, 
@@ -1013,15 +1121,18 @@ void lattice_line_product(
     ); 
     /* printf("DEBUG: %p\n", (void *)(par->temp_lat_filled + temp_index)); */
 
-
+    /* set m_temp_view on the corresponding matrix */
     gsl_matrix_complex_view m_temp_view = gsl_matrix_complex_view_array(
         par->temp_lat + 8 * temp_index, 
         2, 
         2
     ); 
-
+    
+    /* Look up if this matrix was calculated already in this measurement */
     if (!(par->temp_lat_filled[temp_index])) {
-        if (n_matrices == 1) {
+        if (n_matrices == 1) {  /* temp_lattice isn't filled at all at this starting point and direction */
+            /* set m_latt_view_start on the corresponding start matrix on the lattice  and copy it into its
+             * place on the temp_lattice */
             gsl_matrix_complex_view m_latt_view_start = gsl_matrix_complex_view_array(
                 lattice + 8 * periodic_ind(
                     i_start, 
@@ -1043,6 +1154,8 @@ void lattice_line_product(
 
             par->temp_lat_filled[temp_index] = 1;
         } else { 
+            /* Generate the index of the next shorter line product at the same position and direction. Then
+             * set m_last_temp_view on the corresponding matrix */
             last_temp_index = temp_periodic_ind(
                 i_start, 
                 j_start, 
@@ -1060,6 +1173,7 @@ void lattice_line_product(
                     2, 
                     2
                 ),
+                /* set m_latt_view_stop on the missing matrix at the end of the line product */
                 m_latt_view_stop = gsl_matrix_complex_view_array(
                     lattice + 8 * periodic_ind(
                         i_start + sign * (n_matrices - 1) * (dir_abs == 0), 
@@ -1077,6 +1191,7 @@ void lattice_line_product(
             if (par->temp_lat_filled[last_temp_index] == 0) 
                 printf("Warning: lattice_line_product used a matrix of temp_lat that wasn't filled already in this measurement.\n");
 #endif
+            /* now multiply the new matrix onto the old line product and save it in the temp_lattice */
             gsl_blas_zgemm(
                 CblasNoTrans, 
                 CblasNoTrans, 
@@ -1089,9 +1204,10 @@ void lattice_line_product(
             par->temp_lat_filled[temp_index] = 1;
         }
     }
+    /* multiply m_product with the new line product and save it in m_product */
     gsl_blas_zgemm(
         CblasNoTrans, 
-        CblasNoTrans, 
+        dag ? CblasConjTrans : CblasNoTrans, 
         z_one, 
         m_product, 
         &m_temp_view.matrix, 
@@ -1437,11 +1553,11 @@ void measure_action_r(PAR *par, double *lattice, double *action) {
                             );
                             m_latt_view_3 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i + (dir_1 == 0) + (dir_2 == 0), 
-                                    j + (dir_1 == 1) + (dir_2 == 1), 
-                                    k + (dir_1 == 2) + (dir_2 == 2), 
-                                    l + (dir_1 == 3) + (dir_2 == 3), 
-                                    dir_1 + 4,
+                                    i + (dir_2 == 0), 
+                                    j + (dir_2 == 1), 
+                                    k + (dir_2 == 2), 
+                                    l + (dir_2 == 3), 
+                                    dir_1,
                                     par->L_t, 
                                     par->L
                                 ), 
@@ -1450,11 +1566,11 @@ void measure_action_r(PAR *par, double *lattice, double *action) {
                             );
                             m_latt_view_4 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i + (dir_2 == 0), 
-                                    j + (dir_2 == 1), 
-                                    k + (dir_2 == 2), 
-                                    l + (dir_2 == 3), 
-                                    dir_2 + 4,
+                                    i, 
+                                    j, 
+                                    k, 
+                                    l, 
+                                    dir_2,
                                     par->L_t, 
                                     par->L
                                 ), 
@@ -1463,6 +1579,10 @@ void measure_action_r(PAR *par, double *lattice, double *action) {
                             );
                             psl_matrix_complex_product_4(
                                 par,
+                                0, 
+                                0, 
+                                1, 
+                                1, 
                                 &m_latt_view_1.matrix,
                                 &m_latt_view_2.matrix,
                                 &m_latt_view_3.matrix,
@@ -1525,11 +1645,11 @@ void measure_action_l(PAR *par, double *lattice, double *action) {
                             );
                             m_latt_view_3 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i + (dir_1 == 0) + (dir_2 == 0), 
-                                    j + (dir_1 == 1) + (dir_2 == 1), 
-                                    k + (dir_1 == 2) + (dir_2 == 2), 
-                                    l + (dir_1 == 3) + (dir_2 == 3), 
-                                    dir_1 + 4,
+                                    i + (dir_2 == 0), 
+                                    j + (dir_2 == 1), 
+                                    k + (dir_2 == 2), 
+                                    l + (dir_2 == 3), 
+                                    dir_1,
                                     par->L_t, 
                                     par->L
                                 ), 
@@ -1538,11 +1658,11 @@ void measure_action_l(PAR *par, double *lattice, double *action) {
                             );
                             m_latt_view_4 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i + (dir_2 == 0), 
-                                    j + (dir_2 == 1), 
-                                    k + (dir_2 == 2), 
-                                    l + (dir_2 == 3), 
-                                    dir_2 + 4,
+                                    i, 
+                                    j, 
+                                    k, 
+                                    l, 
+                                    dir_2,
                                     par->L_t, 
                                     par->L
                                 ), 
@@ -1551,6 +1671,10 @@ void measure_action_l(PAR *par, double *lattice, double *action) {
                             );
                             psl_matrix_complex_product_4(
                                 par,
+                                0, 
+                                0, 
+                                1, 
+                                1, 
                                 &m_latt_view_1.matrix,
                                 &m_latt_view_2.matrix,
                                 &m_latt_view_3.matrix,
@@ -1574,7 +1698,7 @@ void measure_action_l(PAR *par, double *lattice, double *action) {
 }
 
 void unitarize_lattice(PAR *par, double *lattice) {
-    gsl_matrix_complex_view m_latt_view, m_latt_dagg_view;
+    gsl_matrix_complex_view m_latt_view;
 
     for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
@@ -1588,39 +1712,6 @@ void unitarize_lattice(PAR *par, double *lattice) {
                             2
                         );
                         psl_matrix_complex_unitarize(&m_latt_view.matrix);
-                    }
-                }
-            }
-        }
-    }
-    for (int i = 0; i < par->L_t; i++) {
-        for (int j = 0; j < par->L; j++) {
-            for (int k = 0; k < par->L; k++) {
-                for (int l = 0; l < par->L; l++) {
-
-                    for (int dir = 0; dir < 4; dir++) {
-                        m_latt_view = gsl_matrix_complex_view_array(
-                            lattice + 8 * ind(i, j, k, l, dir + 4, par->L), 
-                            2, 
-                            2
-                        ); 
-                        m_latt_dagg_view = gsl_matrix_complex_view_array(
-                            lattice + 8 * periodic_ind(
-                                i - (dir == 0), 
-                                j - (dir == 1), 
-                                k - (dir == 2), 
-                                l - (dir == 3), 
-                                dir, 
-                                par->L_t, 
-                                par->L
-                            ), 
-                            2, 
-                            2
-                        );
-                        psl_matrix_complex_dagger_memcpy(
-                            &m_latt_view.matrix, 
-                            &m_latt_dagg_view.matrix
-                        );
                     }
                 }
             }
@@ -1643,8 +1734,7 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
         m_latt_view_2, 
         m_latt_view_3, 
         m_su2_view, 
-        m_latt_view, 
-        m_latt_dagg_view;
+        m_latt_view; 
 
     /* Loop through the whole lattice (all independent links) */
     for (int i = 0; i < par->L_t; i++) {
@@ -1662,10 +1752,10 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                                 continue;
                             m_latt_view_1 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i + (dir_1 == 0), 
-                                    j + (dir_1 == 1),
-                                    k + (dir_1 == 2),
-                                    l + (dir_1 == 3),
+                                    i + ((dir_1 == 0) ? 1 : 0), 
+                                    j + ((dir_1 == 1) ? 1 : 0),
+                                    k + ((dir_1 == 2) ? 1 : 0),
+                                    l + ((dir_1 == 3) ? 1 : 0),
                                     dir_2,
                                     par->L_t, 
                                     par->L
@@ -1675,11 +1765,11 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                             ); 
                             m_latt_view_2 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i + (dir_1 == 0) + (dir_2 == 0),
-                                    j + (dir_1 == 1) + (dir_2 == 1),
-                                    k + (dir_1 == 2) + (dir_2 == 2),
-                                    l + (dir_1 == 3) + (dir_2 == 3),
-                                    dir_1 + 4,
+                                    i + ((dir_2 == 0) ? 1 : 0),
+                                    j + ((dir_2 == 1) ? 1 : 0),
+                                    k + ((dir_2 == 2) ? 1 : 0),
+                                    l + ((dir_2 == 3) ? 1 : 0),
+                                    dir_1,
                                     par->L_t, 
                                     par->L
                                 ), 
@@ -1687,20 +1777,15 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                                 2
                             ); 
                             m_latt_view_3 = gsl_matrix_complex_view_array(
-                                lattice + 8 * periodic_ind(
-                                    i + (dir_2 == 0), 
-                                    j + (dir_2 == 1),
-                                    k + (dir_2 == 2),
-                                    l + (dir_2 == 3),
-                                    dir_2 + 4,
-                                    par->L_t, 
-                                    par->L
-                                ), 
+                                lattice + 8 * periodic_ind(i, j, k, l, dir_2, par->L_t, par->L), 
                                 2, 
                                 2
                             );
                             psl_matrix_complex_product_3_add(
                                 par,
+                                0, 
+                                1, 
+                                1, 
                                 &m_latt_view_1.matrix,
                                 &m_latt_view_2.matrix,
                                 &m_latt_view_3.matrix,
@@ -1708,11 +1793,11 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                             );
                             m_latt_view_1 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i + (dir_1 == 0), 
-                                    j + (dir_1 == 1),
-                                    k + (dir_1 == 2),
-                                    l + (dir_1 == 3),
-                                    dir_2 + 4,
+                                    i + ((dir_1 == 0) ? 1 : 0) + ((dir_2 == 0) ? -1 : 0), 
+                                    j + ((dir_1 == 1) ? 1 : 0) + ((dir_2 == 1) ? -1 : 0),
+                                    k + ((dir_1 == 2) ? 1 : 0) + ((dir_2 == 2) ? -1 : 0),
+                                    l + ((dir_1 == 3) ? 1 : 0) + ((dir_2 == 3) ? -1 : 0),
+                                    dir_2,
                                     par->L_t, 
                                     par->L
                                 ), 
@@ -1721,11 +1806,11 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                             );
                             m_latt_view_2 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i + (dir_1 == 0) - (dir_2 == 0),
-                                    j + (dir_1 == 1) - (dir_2 == 1),
-                                    k + (dir_1 == 2) - (dir_2 == 2),
-                                    l + (dir_1 == 3) - (dir_2 == 3),
-                                    dir_1 + 4,
+                                    i + ((dir_2 == 0) ? -1 : 0),
+                                    j + ((dir_2 == 1) ? -1 : 0),
+                                    k + ((dir_2 == 2) ? -1 : 0),
+                                    l + ((dir_2 == 3) ? -1 : 0),
+                                    dir_1,
                                     par->L_t, 
                                     par->L
                                 ), 
@@ -1734,10 +1819,10 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                             );
                             m_latt_view_3 = gsl_matrix_complex_view_array(
                                 lattice + 8 * periodic_ind(
-                                    i - (dir_2 == 0), 
-                                    j - (dir_2 == 1),
-                                    k - (dir_2 == 2),
-                                    l - (dir_2 == 3),
+                                    i + ((dir_2 == 0) ? -1 : 0), 
+                                    j + ((dir_2 == 1) ? -1 : 0),
+                                    k + ((dir_2 == 2) ? -1 : 0),
+                                    l + ((dir_2 == 3) ? -1 : 0),
                                     dir_2,
                                     par->L_t, 
                                     par->L
@@ -1747,6 +1832,9 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                             );
                             psl_matrix_complex_product_3_add(
                                 par,
+                                1, 
+                                1, 
+                                0, 
                                 &m_latt_view_1.matrix,
                                 &m_latt_view_2.matrix,
                                 &m_latt_view_3.matrix,
@@ -1809,31 +1897,13 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                                 );
                             }
                             Delta_S = -par->beta * 
-                                GSL_REAL(z_temp) / 
-                                2. / 
+                                GSL_REAL(z_temp) / 2. / 
                                 (double)(par->tadpole * par->tadpole * par->tadpole * par->tadpole);
                             /* accept/reject step */
                             if (Delta_S <= 0.) {
-                                /* save updated matrix and it's conjugate transpose */
+                                /* save updated matrix */
                                 gsl_matrix_complex_memcpy(&m_latt_view.matrix, &m_latt_proposal_view.matrix);
-
-                                m_latt_dagg_view = gsl_matrix_complex_view_array(
-                                    lattice + 8 * periodic_ind(
-                                        i + (dir_1 == 0), 
-                                        j + (dir_1 == 1), 
-                                        k + (dir_1 == 2), 
-                                        l + (dir_1 == 3),
-                                        dir_1 + 4, 
-                                        par->L_t, 
-                                        par->L
-                                    ), 
-                                    2, 
-                                    2
-                                );
-                                psl_matrix_complex_dagger_memcpy(
-                                    &m_latt_dagg_view.matrix, 
-                                    &m_latt_proposal_view.matrix
-                                );
+                                
                                 *acceptance += 1.;
 
                                 /* DEBUG: 
@@ -1862,23 +1932,7 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
                                         &m_latt_view.matrix, 
                                         &m_latt_proposal_view.matrix
                                     );
-                                    m_latt_dagg_view = gsl_matrix_complex_view_array(
-                                        lattice + 8 * periodic_ind(
-                                            i + (dir_1 == 0), 
-                                            j + (dir_1 == 1), 
-                                            k + (dir_1 == 2), 
-                                            l + (dir_1 == 3),
-                                            dir_1 + 4, 
-                                            par->L_t, 
-                                            par->L
-                                        ), 
-                                        2, 
-                                        2
-                                    );
-                                    psl_matrix_complex_dagger_memcpy(
-                                        &m_latt_dagg_view.matrix, 
-                                        &m_latt_proposal_view.matrix
-                                    );
+                                    
                                     *acceptance += 1.;
                                     /* DEBUG: 
                                     if (measure_action_r(par, lattice, &action_2)) {
@@ -2017,7 +2071,7 @@ void update_lattice(PAR *par, double *lattice, double *su2, double *acceptance) 
 } */
 
 void init_lattice(PAR *par, double *lattice, double *su2) {
-    gsl_matrix_complex_view m_su2_view, m_latt_view, m_latt_dagg_view;
+    gsl_matrix_complex_view m_su2_view, m_latt_view;
 
     /* initialize all independent links with random SU(3) matrices */
     for (int i = 0; i < par->L_t; i++) {
@@ -2046,45 +2100,5 @@ void init_lattice(PAR *par, double *lattice, double *su2) {
             }
         }
     }
-
-    /* generate the daggered matrices */
-    for (int i = 0; i < par->L_t; i++) {
-        for (int j = 0; j < par->L; j++) {
-            for (int k = 0; k < par->L; k++) {
-                for (int l = 0; l < par->L; l++) {
-
-                    for (int dir_dagger = 4; dir_dagger < 8; dir_dagger++) {
-
-                        m_latt_dagg_view = gsl_matrix_complex_view_array(
-                            lattice + 8 * ind(i, j, k, l, dir_dagger, par->L), 
-                            2, 
-                            2
-                        );
-                        m_latt_view = gsl_matrix_complex_view_array(
-                            lattice + 8 * periodic_ind(
-                                i - (dir_dagger == 4), 
-                                j - (dir_dagger == 5), 
-                                k - (dir_dagger == 6), 
-                                l - (dir_dagger == 7), 
-                                dir_dagger - 4, 
-                                par->L_t, 
-                                par->L
-                            ), 
-                            2, 
-                            2
-                        );
-                        psl_matrix_complex_dagger_memcpy(
-                            &m_latt_dagg_view.matrix, 
-                            &m_latt_view.matrix
-                        );
-                    }
-                }
-            }
-        }
-    }
 }
-
-
-
-
 
