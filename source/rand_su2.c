@@ -216,10 +216,10 @@ static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, in
         4 + dir;
 }
 
-static inline int msl_mat_mul(gsl_matrix_complex *A, gsl_matrix_complex *B, gsl_matrix_complex *C){
+static inline int msl_mat_mul(int dag_1, int dag_2, gsl_matrix_complex *A, gsl_matrix_complex *B, gsl_matrix_complex *C){
 	return gsl_blas_zgemm(
-        CblasNoTrans, 
-        CblasNoTrans, 
+        dag_1 ? CblasConjTrans : CblasNoTrans, 
+        dag_2 ? CblasConjTrans : CblasNoTrans, 
         gsl_complex_rect(1, 0), 
         A, 
         B, 
@@ -294,6 +294,8 @@ void init_gauge(PAR *par, double *gauge, double *su2) {
 					for(int dir = 0; dir < 4; dir++){
 						
                         msl_mat_mul(
+                            0, 
+                            0, 
 							gsl_matrix_complex_view_array(
                                 gauge + 8 * gauge_ind(a, b, c, d, par->L), 
                                 2, 
@@ -306,6 +308,8 @@ void init_gauge(PAR *par, double *gauge, double *su2) {
                             ),
 							par->m_workspace);
 						msl_mat_mul(
+                            0, 
+                            1, 
 							par->m_workspace,
 							gsl_matrix_complex_view_array(
                                 gauge + 8 * gauge_periodic_ind(
@@ -407,6 +411,8 @@ int gauge_transform_lattice(PAR *par, double *lattice){
                             2
                         );
                         msl_mat_mul(
+                            0, 
+                            0, 
 							&m_gauge_view.matrix,
 							&m_latt_view.matrix,
 							par->m_workspace
@@ -424,6 +430,8 @@ int gauge_transform_lattice(PAR *par, double *lattice){
                             2
                         );
 						msl_mat_mul(
+                            0, 
+                            1, 
 							par->m_workspace,
 							&m_gauge_view.matrix,
 							&m_latt_view.matrix

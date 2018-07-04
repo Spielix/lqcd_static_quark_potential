@@ -1,8 +1,8 @@
 #include "static_quark_potential.h"
 // #define TADP
-// #define GAUGE
-#define POLYA
-#define POLYA_GAUGE
+#define GAUGE
+//#define POLYA
+//#define POLYA_GAUGE
 #define DEBUG
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
