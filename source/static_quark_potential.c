@@ -1,9 +1,9 @@
 #include "static_quark_potential.h"
 // #define TADP
-#define GAUGE
-//#define POLYA
-//#define POLYA_GAUGE
-#define DEBUG
+// #define GAUGE
+#define POLYA
+// #define POLYA_GAUGE
+// #define DEBUG
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le);
@@ -1085,8 +1085,7 @@ void lattice_line_product(
 ) {
     const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
                     z_one = gsl_complex_rect(1., 0.);
-    int sign, 
-        dir_abs,
+    int dir_abs,
         dag, 
         temp_index,
         last_temp_index,
@@ -1097,11 +1096,9 @@ void lattice_line_product(
 #endif
     /* get some more practical parameters */
     if (dir < 4) { 
-        sign = 1;
         dir_abs = dir;
         dag = 0;
     } else {
-        sign = -1;
         dir_abs = dir - 4;
         dag = 1;
     }
@@ -1139,7 +1136,7 @@ void lattice_line_product(
                     j_start, 
                     k_start, 
                     l_start, 
-                    dir, 
+                    dir_abs, 
                     par->L_t, 
                     par->L
                 ), 
@@ -1161,7 +1158,7 @@ void lattice_line_product(
                 j_start, 
                 k_start, 
                 l_start, 
-                dir, 
+                dir_abs, 
                 n_matrices - 2, 
                 L_max, 
                 par->L_t,
@@ -1176,11 +1173,11 @@ void lattice_line_product(
                 /* set m_latt_view_stop on the missing matrix at the end of the line product */
                 m_latt_view_stop = gsl_matrix_complex_view_array(
                     lattice + 8 * periodic_ind(
-                        i_start + sign * (n_matrices - 1) * (dir_abs == 0), 
-                        j_start + sign * (n_matrices - 1) * (dir_abs == 1), 
-                        k_start + sign * (n_matrices - 1) * (dir_abs == 2), 
-                        l_start + sign * (n_matrices - 1) * (dir_abs == 3), 
-                        dir, 
+                        i_start + ((dir_abs == 0) ? (n_matrices - 1) : 0), 
+                        j_start + ((dir_abs == 1) ? (n_matrices - 1) : 0), 
+                        k_start + ((dir_abs == 2) ? (n_matrices - 1) : 0), 
+                        l_start + ((dir_abs == 3) ? (n_matrices - 1) : 0), 
+                        dir_abs, 
                         par->L_t, 
                         par->L
                     ), 
@@ -1316,7 +1313,7 @@ int measure(PAR *par, gsl_matrix *results, double *lattice, char *file_name) {
     else 
         L_max = par->L;
 
-    temp_lat_size = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)(8 * L_max);
+    temp_lat_size = (unsigned long)(par->L_t * par->L * par->L * par->L) * (unsigned long)(4 * L_max);
     
     data_file = fopen(file_name, "ab");
     if (data_file == NULL) {
