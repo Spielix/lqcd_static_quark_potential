@@ -10,14 +10,15 @@
 #include <time.h>
 #include <math.h>
 
+#include <gsl/gsl_math.h>
 #include <gsl/gsl_rng.h>    /* random number generation */
-#include <gsl/gsl_complex.h>
-#include <gsl/gsl_complex_math.h>
+//#include <gsl/gsl_complex.h>
+//#include <gsl/gsl_complex_math.h>
 #include <gsl/gsl_matrix_double.h>
-#include <gsl/gsl_matrix_complex_double.h>
-#include <gsl/gsl_vector_complex_double.h>
-#include <gsl/gsl_blas.h>   /* Basic Linear Algebra Subprograms */
-#include <gsl/gsl_linalg.h>     /* Only for debugging (determinants) */
+//#include <gsl/gsl_matrix_complex_double.h>
+//#include <gsl/gsl_vector_complex_double.h>
+//#include <gsl/gsl_blas.h>   /* Basic Linear Algebra Subprograms */
+//#include <gsl/gsl_linalg.h>     /* Only for debugging (determinants) */
 
 typedef struct PAR {
     int n_configs;
@@ -33,40 +34,42 @@ typedef struct PAR {
     int n_corr;
     double beta;
     double tadpole;
-    gsl_matrix_complex *m_workspace;
     double *temp_lat;
     int *temp_lat_filled;
 } PAR;
 
+void psl_su2_memcpy(double *dest, const double *src);
+void psl_su2_dagger(double *m);
+void psl_su2_dagger_memcpy(double *dest, const double *src);
+void psl_su2_product_notrans_notrans(const double *m_1, const double *m_2, double *m_3);
+void psl_su2_product_conjtrans_conjtrans(const double *m_1, const double *m_2, double *m_3);
+void psl_su2_product_notrans_conjtrans(const double *m_1, const double *m_2, double *m_3);
+void psl_su2_product_conjtrans_notrans(const double *m_1, const double *m_2, double *m_3);
 
-void init_su2(PAR *par, double *su2);
-void psl_matrix_complex_dagger(gsl_matrix_complex *m);
-void psl_matrix_complex_dagger_memcpy(gsl_matrix_complex *dest, gsl_matrix_complex *src);
-void psl_matrix_complex_product_3_add(
-    PAR *par, 
+void init_su2(const PAR *par, double *su2);
+void psl_su2_product_3_add(
     int dag_1, 
     int dag_2, 
     int dag_3, 
-    const gsl_matrix_complex *matrix_1, 
-    const gsl_matrix_complex *matrix_2, 
-    const gsl_matrix_complex *matrix_3, 
-    gsl_matrix_complex *m_sum
+    const double *m_1, 
+    const double *m_2, 
+    const double *m_3, 
+    double *m_sum
 );
-void psl_matrix_complex_product_4(
-    PAR *par,
+void psl_su2_product_4(
     int dag_1, 
     int dag_2, 
     int dag_3, 
     int dag_4, 
-    const gsl_matrix_complex *matrix_1, 
-    const gsl_matrix_complex *matrix_2, 
-    const gsl_matrix_complex *matrix_3, 
-    const gsl_matrix_complex *matrix_4,
-    gsl_matrix_complex *m_result
+    const double *m_1, 
+    const double *m_2, 
+    const double *m_3, 
+    const double *m_4,
+    double *m_result
 );
 double plaquette_op(
-    PAR *par,
-    double *lattice, 
+    const PAR *par,
+    const double *lattice, 
     int i_start, 
     int j_start, 
     int k_start, 
@@ -74,37 +77,48 @@ double plaquette_op(
     int dir_1, 
     int dir_2
 );
-void psl_matrix_complex_unitarize(gsl_matrix_complex *matrix);
-int measure_polyakov(PAR *par, double *result, double *lattice, char *file_name);
-int measure(PAR *par, gsl_matrix *results, double *lattice, char *file_name);
-void measure_action_l(PAR *par, double *lattice, double *action);
-void measure_action_r(PAR *par, double *lattice, double *action);
-void unitarize_lattice(PAR *par, double *lattice);
-void update_lattice(PAR *par, double *lattice, double *su3, double *acceptance);
-void init_lattice(PAR *par, double *lattice, double *su3);
+void psl_su2_unitarize(double *matrix);
+int measure_polyakov(const PAR *par, double *result, const double *lattice, const char *file_name);
+int measure(const PAR *par, gsl_matrix *results, const double *lattice, const char *file_name);
+void measure_action_l(const PAR *par, const double *lattice, double *action);
+void measure_action_r(const PAR *par, const double *lattice, double *action);
+void unitarize_lattice(const PAR *par, double *lattice);
+void update_lattice(const PAR *par, double *lattice, const double *su3, double *acceptance);
+void init_lattice(const PAR *par, double *lattice, const double *su3);
 int simulate(PAR *par, double *lattice);
 int read_args(PAR *par, char *arg);
-int check_su2(gsl_matrix_complex *matrix, gsl_matrix_complex *dagger, double epsilon);
-int gauge_transform_lattice(PAR *par, double *lattice);
+int gauge_transform_lattice(const PAR *par, double *lattice);
 
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
  * starting point and save it under m_product*/
 void lattice_line_product(
     const PAR *par, 
-    double *lattice, 
+    const double *lattice, 
     int i_start, 
     int j_start, 
     int k_start, 
     int l_start, 
     int dir, 
     int n_matrices, 
-    gsl_matrix_complex *m_product
+    double *m_product
+);
+
+void wilson_line_product(
+    const PAR *par, 
+    const double *lattice, 
+    int i_start, 
+    int j_start, 
+    int k_start, 
+    int l_start, 
+    int dir, 
+    int n_matrices, 
+    double *m_product
 );
 
 /* calculates a planar Wilson-loop */
 void lattice_loop_rect(
     const PAR *par, 
-    double *lattice, 
+    const double *lattice, 
     int i_start, 
     int j_start, 
     int k_start, 

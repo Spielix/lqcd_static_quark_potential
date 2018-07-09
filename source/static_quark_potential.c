@@ -2,8 +2,8 @@
 // #define TADP
 // #define GAUGE
 #define POLYA
-// #define POLYA_GAUGE
-// #define DEBUG
+#define POLYA_GAUGE
+#define DEBUG
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le);
@@ -36,17 +36,9 @@ int main(int argc, char *argv[])
     par->beta = 2.3;
     par->tadpole = 1.;
 
-    par->m_workspace = gsl_matrix_complex_calloc(2, 2);
-    if (par->m_workspace == NULL) {
-        printf("Error: Failed allocating memory for matrix-workspace. Exiting...\n");
-        free(par);
-        exit(EXIT_FAILURE);
-    }
-  
     if (argc == 1) {
         printf("Usage: %s L=16 nconfigs=100 run\n", argv[0]);
         printf("Optional arguments (with defaults) L=%d seed=%ld", par->L, par->seed);
-        gsl_matrix_complex_free(par->m_workspace);
         free(par);
         exit(EXIT_SUCCESS);
     }
@@ -54,12 +46,10 @@ int main(int argc, char *argv[])
     /* read_args interprets the arguments given to the program and starts it when "run" appears */
     for (int iarg = 1; iarg < argc; iarg++)
         if (read_args(par, argv[iarg])) {
-            gsl_matrix_complex_free(par->m_workspace);
             free(par);
             exit(EXIT_FAILURE);
         }
 
-    gsl_matrix_complex_free(par->m_workspace);
     free(par);
     exit(EXIT_SUCCESS);
 }
@@ -421,7 +411,7 @@ int simulate(PAR *par, double *lattice) {
     
     for (int i = 0; i < par->n_configs; i++) {
         if ((i + 1) % 10 == 0) {
-            for (int j = 0; j < par->n_su2 * 8; j++) 
+            for (int j = 0; j < par->n_su2 * 4; j++) 
                 su2[j] = 0.;
             
             init_su2(par, su2);
@@ -676,20 +666,21 @@ static inline int temp_periodic_ind(
         le_max + ll;
 }
 
-/* function to get the conjugate transpose matrix */
-void psl_matrix_complex_dagger_old(gsl_matrix_complex *m) {
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-            gsl_matrix_complex_set(m, i, j, gsl_complex_conjugate(gsl_matrix_complex_get(m, j, i)));
-        }
-    }
+void psl_su2_memcpy(double *dest, const double *src) {
+    for (int i = 0; i < 4; i++) 
+        dest[i] = src[i];
 }
 
 void psl_su2_dagger(double *m) {
     for (int i = 1; i < 4; i++) 
-        m[i] = - m[i];
+        m[i] = -m[i];
 }
 
+void psl_su2_dagger_memcpy(double *dest, const double *src) {
+    dest[0] = src[0];
+    for (int i = 1; i < 4; i++) 
+        dest[i] = -src[i];
+}
 /*
 void psl_su2_product_test(int dag_1, int dag_2, double *m_1, double *m_2, double *m_3) {
     int signum_1 = (dag_1 ? -1 : 1);
@@ -772,10 +763,10 @@ void psl_su2_product_4(
     int dag_2, 
     int dag_3, 
     int dag_4, 
-    const double *matrix_1, 
-    const double *matrix_2, 
-    const double *matrix_3, 
-    const double *matrix_4,
+    const double *m_1, 
+    const double *m_2, 
+    const double *m_3, 
+    const double *m_4,
     double *m_result
 ) {
     double m_temp[4] = {0};
@@ -849,10 +840,7 @@ double plaquette_op(
         ), 
         m_temp + 4
     );
-    gsl_blas_zgemm(
-        CblasNoTrans, 
-        CblasConjTrans, 
-        z_one, 
+    psl_su2_product_notrans_conjtrans(
         m_temp + 4, 
         lattice + 4 * ind(
             i_start, 
@@ -1015,7 +1003,7 @@ void lattice_line_product(
         if ((dag != 0) && (dag != 1)) 
             printf("Warning: conjugate transpose flag isn't set to 0 or 1 in lattice_line_product. Continuing...\n");
 #endif
-        if (dag == 0) {
+        if (dag == 0) 
             psl_su2_product_notrans_notrans(
                 m_product, 
                 lattice + 4 * periodic_ind(
@@ -1043,7 +1031,7 @@ void lattice_line_product(
                 ), 
                 m_temp
             );
-        gsl_matrix_complex_memcpy(m_product, m_temp);
+        psl_su2_memcpy(m_product, m_temp);
     }
 }
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
@@ -1059,8 +1047,6 @@ void wilson_line_product(
     int n_matrices, 
     double *m_product
 ) {
-    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
-                    z_one = gsl_complex_rect(1., 0.);
     int dir_abs,
         dag, 
         temp_index,
@@ -1099,7 +1085,7 @@ void wilson_line_product(
         if (n_matrices == 1) {  /* temp_lattice isn't filled at all at this starting point and direction */
             /* copy first (n = 1) matrix from lattice */
             for (int i = 0; i < 4; i++) 
-                par->temp_lattice[4 * temp_index + i] = lattice[4 * periodic_ind(
+                par->temp_lat[4 * temp_index + i] = lattice[4 * periodic_ind(
                     i_start, 
                     j_start, 
                     k_start, 
@@ -1130,7 +1116,7 @@ void wilson_line_product(
             /* now multiply the missing matrix at the end of the line product onto the old line product and 
              * save it in the temp_lattice */
             psl_su2_product_notrans_notrans(
-                par->temp_lattice + 4 * last_temp_index, 
+                par->temp_lat + 4 * last_temp_index, 
                 lattice + 4 * periodic_ind(
                     i_start + ((dir_abs == 0) ? (n_matrices - 1) : 0), 
                     j_start + ((dir_abs == 1) ? (n_matrices - 1) : 0), 
@@ -1140,7 +1126,7 @@ void wilson_line_product(
                     par->L_t, 
                     par->L
                 ), 
-                par->temp_lattice + 4 * temp_index
+                par->temp_lat + 4 * temp_index
             );
             par->temp_lat_filled[temp_index] = 1;
         }
@@ -1154,13 +1140,13 @@ void wilson_line_product(
     if (dag == 0) 
         psl_su2_product_notrans_notrans(
             m_product, 
-            par->temp_lattice + 4 * temp_index, 
+            par->temp_lat + 4 * temp_index, 
             m_temp
         );
     else 
         psl_su2_product_notrans_conjtrans(
             m_product, 
-            par->temp_lattice + 4 * temp_index, 
+            par->temp_lat + 4 * temp_index, 
             m_temp
         );
     for (int i = 0; i < 4; i++) 
@@ -1337,8 +1323,7 @@ void measure_action_r(const PAR *par, const double *lattice, double *action) {
                         for (int dir_2 = dir_1 + 1; dir_2 < 4; dir_2++) {
 
                             /* calculate a x a Wilson-loop */
-                            psl_matrix_complex_product_4(
-                                par,
+                            psl_su2_product_4(
                                 0, 
                                 0, 
                                 1, 
@@ -1391,8 +1376,7 @@ void measure_action_l(const PAR *par, const double *lattice, double *action) {
                         for (int dir_1 = dir_2 + 1; dir_1 < 4; dir_1++) {
 
                             /* calculate a x a Wilson-loop */
-                            psl_matrix_complex_product_4(
-                                par,
+                            psl_su2_product_4(
                                 0, 
                                 0, 
                                 1, 
@@ -1439,7 +1423,7 @@ void unitarize_lattice(const PAR *par, double *lattice) {
                 for (int l = 0; l < par->L; l++) {
 
                     for (int dir = 0; dir < 4; dir++) {
-                        psl_matrix_complex_unitarize(lattice + 4 * ind(i, j, k, l, dir, par->L));
+                        psl_su2_unitarize(lattice + 4 * ind(i, j, k, l, dir, par->L));
                     }
                 }
             }
@@ -1474,8 +1458,7 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
                             if (dir_1 == dir_2) 
                                 continue;
                             
-                            psl_matrix_complex_product_3_add(
-                                par,
+                            psl_su2_product_3_add(
                                 0, 
                                 1, 
                                 1, 
@@ -1501,8 +1484,7 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
                                 m_workspace_arr + staples_index_offset
                             );
 
-                            psl_matrix_complex_product_3_add(
-                                par,
+                            psl_su2_product_3_add(
                                 1, 
                                 1, 
                                 0, 
