@@ -2,8 +2,8 @@
 // #define TADP
 // #define GAUGE
 #define POLYA
-#define POLYA_GAUGE
-#define DEBUG
+// #define POLYA_GAUGE
+// #define DEBUG
 
 static inline int ind(int i, int j, int k, int l, int dir, int le);
 static inline int periodic_ind(int i, int j, int k, int l, int dir, int le_0, int le);
@@ -288,6 +288,8 @@ int simulate(PAR *par, double *lattice) {
     /* generate the SU(2) matrices */
     printf("Generating %d random SU(2)-matrices...\n", par->n_su2);
     init_su2(par, su2);
+    //for (int jj = 0; jj < 4 * par->n_su2; jj++) 
+    //    printf("%d\t%g\n", jj % 4, su2[jj]);
 
     /* DEBUG: 
     for (int i = 80; i < 88; i++) {
@@ -410,42 +412,15 @@ int simulate(PAR *par, double *lattice) {
     tadpole_result[0] = 0; */
     
     for (int i = 0; i < par->n_configs; i++) {
-        if ((i + 1) % 10 == 0) {
-            for (int j = 0; j < par->n_su2 * 4; j++) 
-                su2[j] = 0.;
-            
+        
+        if ((i + 1) % 10 == 0) 
             init_su2(par, su2);
-        }
+        
         for (int j = 0; j < par->n_corr; j++) {
             update_lattice(par, lattice, su2, &acceptance);
 
-            /* DEBUG: print out ReTr of some random link on the lattice / print out the matrix product of a
-             * link and his conjugate transpose
-            gsl_complex z_temp = gsl_complex_rect(0., 0.);
-            gsl_matrix_complex *m_temp = NULL;
-            m_temp = gsl_matrix_complex_alloc(3, 3);
-            for (int k = 0; k < 3; k++) 
-                z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(lattice[ind(4, 4, 4, 4, 0, par->L)], k, k));
-            printf("DEBUG: ReTr = %7.2e\n", GSL_REAL(z_temp)); 
-            gsl_blas_zgemm(
-                CblasNoTrans, 
-                CblasNoTrans, 
-                gsl_complex_rect(1., 0.),
-                lattice[ind(3, 3, 3, 3, 0, par->L)], 
-                lattice[ind(4, 3, 3, 3, 4, par->L)], 
-                gsl_complex_rect(0., 0.),
-                m_temp
-            );
-            for (int k = 0; k < 3; k++) {
-                for (int l = 0; l < 3; l++) {
-                    z_temp = gsl_matrix_complex_get(m_temp, k, l);
-                    printf("%3.2f+%3.2f\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
-                }
-                printf("\n");
-            }
-            gsl_matrix_complex_free(m_temp);
-            */
         }
+        
         /* DEBUG: measure the action of the lattice with different direction in each Wilson-loop
         double action_1, action_2;
         if (measure_action_r(par, lattice, &action_1)) {
@@ -462,6 +437,7 @@ int simulate(PAR *par, double *lattice) {
         }
         printf("DEBUG: action_l = %7.2g\nDEBUG: action_r = %7.2g\n", action_1, action_2);
         DEBUG END */
+
         unitarize_lattice(par, lattice);
 #ifndef TADP      
 #ifndef POLYA
@@ -919,7 +895,7 @@ void lattice_loop_rect(
     double m_temp[4] = {0};
     m_temp[0] = 1;  /* set identity */
 
-    lattice_line_product(
+    wilson_line_product(
         par, 
         lattice, 
         i_start, 
@@ -930,7 +906,7 @@ void lattice_loop_rect(
         L_1, 
         m_temp
     );
-    lattice_line_product(
+    wilson_line_product(
         par, 
         lattice, 
         i_start + ((dir_1 == 0) ? L_1 : 0), 
@@ -941,7 +917,7 @@ void lattice_loop_rect(
         L_2, 
         m_temp
     );
-    lattice_line_product(
+    wilson_line_product(
         par, 
         lattice, 
         i_start + ((dir_2 == 0) ? L_2 : 0), 
@@ -952,7 +928,7 @@ void lattice_loop_rect(
         L_1, 
         m_temp
     );
-    lattice_line_product(
+    wilson_line_product(
         par, 
         lattice, 
         i_start, 
@@ -998,12 +974,12 @@ void lattice_line_product(
         dag = 1;
     } 
 
-    for (int x = 0; x < n_matrices; x++) {
 #ifdef DEBUG
-        if ((dag != 0) && (dag != 1)) 
-            printf("Warning: conjugate transpose flag isn't set to 0 or 1 in lattice_line_product. Continuing...\n");
+    if ((dag != 0) && (dag != 1)) 
+        printf("Warning: conjugate transpose flag isn't set to 0 or 1 in lattice_line_product. Continuing...\n");
 #endif
-        if (dag == 0) 
+    if (dag == 0) 
+        for (int x = 0; x < n_matrices; x++) {
             psl_su2_product_notrans_notrans(
                 m_product, 
                 lattice + 4 * periodic_ind(
@@ -1017,10 +993,13 @@ void lattice_line_product(
                 ), 
                 m_temp
             );
-        else 
+            psl_su2_memcpy(m_product, m_temp);
+        }
+    else 
+        for (int x = 0; x < n_matrices; x++) {
             psl_su2_product_notrans_conjtrans(
                 m_product, 
-                lattice + 4* periodic_ind(
+                lattice + 4 * periodic_ind(
                     i_start + ((dir_abs == 0) ? sign * x - dag : 0), 
                     j_start + ((dir_abs == 1) ? sign * x - dag : 0), 
                     k_start + ((dir_abs == 2) ? sign * x - dag : 0), 
@@ -1031,9 +1010,10 @@ void lattice_line_product(
                 ), 
                 m_temp
             );
-        psl_su2_memcpy(m_product, m_temp);
-    }
+            psl_su2_memcpy(m_product, m_temp);
+        }
 }
+
 /* calculate the product of a given matrix m_product with n_matrices links along the direction dir from a
  * starting point and save it under m_product. --> Only works in Wilson-measurement loop! <-- */
 void wilson_line_product(
@@ -1158,7 +1138,7 @@ void psl_su2_unitarize(double *matrix) {
     double norm = 0;
     for (int i = 0; i < 4; i++) 
         norm += matrix[i] * matrix[i];
-
+    norm = sqrt(norm);
     for (int i = 0; i < 4; i++) 
         matrix[i] /= norm;
 }
@@ -1205,7 +1185,7 @@ int measure_polyakov(const PAR *par, double *result, const double *lattice, cons
     }
 
     /* normalize result and apply tadpole correction */
-    *result  = *result / (double)(par->L * par->L * par->L) / gsl_pow_int(par->tadpole, par->L_t);
+    *result  /= (double)(par->L * par->L * par->L) * gsl_pow_int(par->tadpole, par->L_t);
 
     /* write result to file */
     if (fwrite(result, sizeof(double), 1, data_file) != 1) {
@@ -1440,6 +1420,9 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
         loops_index_offset = 8,
         staples_index_offset =  12;
 
+    //for (int i = 0; i < par->L * par->L * par->L * par->L_t * 4 * 4; i++) 
+    //    printf("%d\t%g\n", i % 4, lattice[i]);
+
     /* Loop through the whole lattice (all independent links) */
     for (int i = 0; i < par->L_t; i++) {
         for (int j = 0; j < par->L; j++) {
@@ -1517,6 +1500,8 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
                                 ),
                                 m_workspace_arr + staples_index_offset
                             );
+                            //for (int jj = 0; jj < 4; jj++) 
+                            //    printf("DEBUG: %d\t%g\n", jj, m_workspace_arr[staples_index_offset + jj]);
                         }
                         /* do the specified number of MC-updates of this link */
                         for (int n = 0; n < par->n_hits; n++) {
@@ -1543,6 +1528,7 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
                             Delta_S = -par->beta * 
                                 m_workspace_arr[loops_index_offset] / 
                                 (double)(par->tadpole * par->tadpole * par->tadpole * par->tadpole);
+                            
                             /* accept/reject step */
                             if (Delta_S <= 0.) {
                                 /* save updated matrix */

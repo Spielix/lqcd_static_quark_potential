@@ -4,19 +4,19 @@ int sign(double x);
 
 void init_su2(const PAR *par, double *su2){
     double norm,
-    x_0 = sqrt(1. - par->eps * par->eps);
+        x_0 = sqrt(1. - par->eps * par->eps);
 
     for (int i = 0; i < par->n_su2 / 2; i++) {
         norm = 0.;
         su2[4 * i] = x_0;
-        for (int j = 1; i < 4; i++) {
+        for (int j = 1; j < 4; j++) {
             su2[4 * i + j] = gsl_rng_uniform_pos(par->ran_gen) - 0.5;
             norm += su2[4 * i + j] * su2[4 * i + j];
         }
         norm = sqrt(norm);
         for (int j = 1; j < 4; j++) 
             su2[4 * i + j] *= par->eps / norm;
-        psl_su2_dagger_memcpy(su2 + par->n_su2 / 2 + 4 * i, su2 + 4 * i);
+        psl_su2_dagger_memcpy(su2 + 2 * par->n_su2 + 4 * i, su2 + 4 * i);
     }	
 }
 
