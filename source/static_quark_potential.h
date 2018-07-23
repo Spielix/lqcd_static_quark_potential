@@ -83,7 +83,8 @@ int measure(const PAR *par, gsl_matrix *results, const double *lattice, const ch
 void measure_action_l(const PAR *par, const double *lattice, double *action);
 void measure_action_r(const PAR *par, const double *lattice, double *action);
 void unitarize_lattice(const PAR *par, double *lattice);
-void update_lattice(const PAR *par, double *lattice, const double *su3, double *acceptance);
+void metropolis_update_lattice(const PAR *par, double *lattice, const double *su3, double *acceptance);
+void overrelaxation_update_lattice(const PAR *par, double *lattice, const double *su3);
 void init_lattice(const PAR *par, double *lattice, const double *su3);
 int simulate(PAR *par, double *lattice);
 int read_args(PAR *par, char *arg);

@@ -11,4 +11,6 @@ static_quark_potential: static_quark_potential.o rand_su2.o # ${OBJS}
 
 data_connect: data_connect.o
 
+autocorr_polya: autocorr_polya.o
+
 ${OBJS}: ${INCLUDES} Makefile

@@ -1,6 +1,9 @@
 #include "static_quark_potential.h"
 
-int sign(double x);
+int sign(double x) {
+    if (x == 0) return 0;
+    else return (x > 0) ? 1 : -1;
+}
 
 void init_su2(const PAR *par, double *su2){
     double norm,
@@ -8,7 +11,7 @@ void init_su2(const PAR *par, double *su2){
 
     for (int i = 0; i < par->n_su2 / 2; i++) {
         norm = 0.;
-        su2[4 * i] = x_0;
+        su2[4 * i] = x_0 * (double)sign(gsl_rng_uniform_pos(par->ran_gen) - 0.5);
         for (int j = 1; j < 4; j++) {
             su2[4 * i + j] = gsl_rng_uniform_pos(par->ran_gen) - 0.5;
             norm += su2[4 * i + j] * su2[4 * i + j];

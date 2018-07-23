@@ -2,6 +2,7 @@
 // #define TADP
 // #define GAUGE
 #define POLYA
+#define OVERRELAX
 // #define POLYA_GAUGE
 // #define DEBUG
 
@@ -31,8 +32,8 @@ int main(int argc, char *argv[])
     par->n_su2 = 10000;
     par->eps = 0.4;
     par->n_hits = 10;
-    par->n_therm = 500;
-    par->n_corr = 50;
+    par->n_therm = 1000;
+    par->n_corr = 1;
     par->beta = 2.3;
     par->tadpole = 1.;
 
@@ -240,11 +241,14 @@ int simulate(PAR *par, double *lattice) {
     double tadpole_result[100];
 #endif
    
+    lattice[0] = 1.;
     /* prepare data file */
-    char file_name[100];
+    char file_name[100], 
+         dir_file_name[100];
     FILE *data_file;
-    sprintf(file_name, "data/L%d_Lt%d_beta%3.2f_u%3.2f_seed%ld.bin", par->L, par->L_t, par->beta, par->tadpole, par->seed);
-    data_file = fopen(file_name, "w");
+    sprintf(file_name, "L%d_Lt%d_beta%f_u%3.2f_seed%ld.bin", par->L, par->L_t, par->beta, par->tadpole, par->seed);
+    sprintf(dir_file_name, "finite_size_scaling_data/%s", file_name);
+    data_file = fopen(dir_file_name, "w");
     if (data_file == NULL) {
         printf("Error: Failed opening data file for preparation. Exiting...\n");
         return 1;
@@ -288,92 +292,28 @@ int simulate(PAR *par, double *lattice) {
     /* generate the SU(2) matrices */
     printf("Generating %d random SU(2)-matrices...\n", par->n_su2);
     init_su2(par, su2);
-    //for (int jj = 0; jj < 4 * par->n_su2; jj++) 
-    //    printf("%d\t%g\n", jj % 4, su2[jj]);
-
-    /* DEBUG: 
-    for (int i = 80; i < 88; i++) {
-        printf("%f\t", su2[i]);
-    }
-    printf("\n");
     
-    gsl_complex z_temp;
-    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
-                    z_one = gsl_complex_rect(1., 0.);
-    gsl_matrix_complex *m_temp = NULL, 
-                       *m_temp_0 = NULL;
-    gsl_permutation *p = NULL;
-    
-    m_temp = gsl_matrix_complex_alloc(2, 2);
-    m_temp_0 = gsl_matrix_complex_alloc(2, 2);
-    p = gsl_permutation_alloc(2);
-    for (int i = 0; i < par->n_su2 / 2; i++) {
-        int signum;
-        gsl_complex det;
-        
-        gsl_matrix_complex_memcpy(m_temp, su2[i]);
-        gsl_linalg_complex_LU_decomp(m_temp, p, &signum);
-        det = gsl_linalg_complex_LU_det(m_temp, signum);
-        printf("DEBUG: det = %4.3f + %4.3fi\n", GSL_REAL(det), GSL_IMAG(det));
-        printf("DEBUG: abs(det) = %4.3f\n", gsl_complex_abs(det));
-    }
-    for (int j = 0; j < 2; j++) {
-        for (int k = 0; k < 2; k++) {
-            z_temp = gsl_matrix_complex_get(su2[5], j, k);
-            printf("%3.2f+%3.2fi\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
-        }
-        printf("\n");
-    }
-    for (int i = 0; i < par->n_su2 / 2; i++) {
-        gsl_blas_zgemm(
-            CblasNoTrans, 
-            CblasNoTrans, 
-            z_one, 
-            su2[i], 
-            su2[i + par->n_su2 / 2], 
-            z_zero,
-            m_temp
-        );
-        printf("DEBUG:\n");
-        for (int j = 0; j < 2; j++) {
-            for (int k = 0; k < 2; k++) {
-                z_temp = gsl_matrix_complex_get(m_temp, j, k);
-                printf("%3.2f+%3.2fi\t", GSL_REAL(z_temp), GSL_IMAG(z_temp));
-            }
-            printf("\n");
-        }
-    }
-    
-    gsl_matrix_complex_memcpy(m_temp, su2[(int)(par->n_su2 * gsl_rng_uniform(par->ran_gen))]);
-    for (int i = 0; i < par->n_hits; i++) {
-        gsl_blas_zgemm(
-            CblasNoTrans, 
-            CblasNoTrans, 
-            z_one, 
-            su2[(int)(par->n_su2 * gsl_rng_uniform(par->ran_gen))],
-            m_temp, 
-            z_zero, 
-            m_temp_0
-        );
-        gsl_matrix_complex_memcpy(m_temp, m_temp_0);
-    }
-    z_temp = z_zero;
-    for (int i = 0; i < 2; i++) 
-        z_temp = gsl_complex_add(z_temp, gsl_matrix_complex_get(m_temp_0, i, i));
-    printf("DEBUG: Trace = %e\n", GSL_REAL(z_temp)); 
-    gsl_matrix_complex_free(m_temp);
-    gsl_matrix_complex_free(m_temp_0);
-    gsl_permutation_free(p);
-     DEBUG_END */
-
     /* initialize all links in the lattice */
     printf("Initializing %d x %d^3 lattice...\n", par->L_t, par->L);
     init_lattice(par, lattice, su2);
     
+    /* DEBUG: */
+    double action_1 = 0., action_2 = 0.;
+    measure_action_r(par, lattice, &action_1);
+    overrelaxation_update_lattice(par, lattice, su2);
+//    gauge_transform_lattice(par, lattice);
+    measure_action_r(par, lattice, &action_2);
+    printf("DEBUG: Delta S = %e\n", action_2 - action_1);
+    /* DEBUG END */
+
     /* thermalize the lattice */
     printf("Thermalizing (%d sweeps)...\n", par->n_therm);
     for (int i = 0; i < par->n_therm; i++) {
-        update_lattice(par, lattice, su2, &acceptance);
+        metropolis_update_lattice(par, lattice, su2, &acceptance);
+#ifdef OVERRELAX
+        overrelaxation_update_lattice(par, lattice, su2);
+        overrelaxation_update_lattice(par, lattice, su2);
+#endif
         if (i % 1000 == 0) 
             unitarize_lattice(par, lattice);
         /* if (check_su2(lattice[ind(3, 3, 3, 3, 0, par->L)], lattice[ind(4, 3, 3, 3, 4)], 1e-10)) {
@@ -417,27 +357,13 @@ int simulate(PAR *par, double *lattice) {
             init_su2(par, su2);
         
         for (int j = 0; j < par->n_corr; j++) {
-            update_lattice(par, lattice, su2, &acceptance);
-
+            metropolis_update_lattice(par, lattice, su2, &acceptance);
+#ifdef OVERRELAX
+            overrelaxation_update_lattice(par, lattice, su2);
+            overrelaxation_update_lattice(par, lattice, su2);
+#endif
         }
         
-        /* DEBUG: measure the action of the lattice with different direction in each Wilson-loop
-        double action_1, action_2;
-        if (measure_action_r(par, lattice, &action_1)) {
-            for (int j = 0; j < par->n_su2; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            return 1;
-        }
-        if (measure_action_l(par, lattice, &action_2)) {
-            for (int j = 0; j < par->n_su2; j++) 
-                gsl_matrix_complex_free(su2[j]);
-            free(su2);
-            return 1;
-        }
-        printf("DEBUG: action_l = %7.2g\nDEBUG: action_r = %7.2g\n", action_1, action_2);
-        DEBUG END */
-
         unitarize_lattice(par, lattice);
 #ifndef TADP      
 #ifndef POLYA
@@ -450,7 +376,7 @@ int simulate(PAR *par, double *lattice) {
             par, 
             &m_result_view.matrix, 
             lattice, 
-            file_name
+            dir_file_name
         )) {
             free(su2);
             free(results);
@@ -832,47 +758,6 @@ double plaquette_op(
     return m_temp[0];
 }
 
-/* calculates the product of 6 matrices 
-void psl_matrix_complex_product_6(
-    PAR *par,
-    const gsl_matrix_complex *matrix_1, 
-    const gsl_matrix_complex *matrix_2, 
-    const gsl_matrix_complex *matrix_3, 
-    const gsl_matrix_complex *matrix_4,
-    const gsl_matrix_complex *matrix_5, 
-    const gsl_matrix_complex *matrix_6,
-    gsl_matrix_complex *m_result
-) {
-    const gsl_complex z_zero = gsl_complex_rect(0., 0.), 
-                    z_one = gsl_complex_rect(1., 0.);
-
-    psl_matrix_complex_product_4(
-        par,
-        matrix_1, 
-        matrix_2, 
-        matrix_3, 
-        matrix_4, 
-        m_result
-    );
-    gsl_blas_zgemm(
-        CblasNoTrans, 
-        CblasNoTrans, 
-        z_one, 
-        m_result, 
-        matrix_5, 
-        z_zero, 
-        par->m_workspace
-    );
-    gsl_blas_zgemm(
-        CblasNoTrans, 
-        CblasNoTrans, 
-        z_one, 
-        par->m_workspace, 
-        matrix_6, 
-        z_zero, 
-        m_result
-    );
-} */
 
 /* calculates a planar Wilson-loop */
 void lattice_loop_rect(
@@ -1145,14 +1030,14 @@ void psl_su2_unitarize(double *matrix) {
 
 int measure_polyakov(const PAR *par, double *result, const double *lattice, const char *file_name) {
     FILE *data_file;
-    char polyakov_file_name[1000];
+    char polyakov_file_name[1000], s_temp[1000];
     double m_temp[4] = {0};
 
     *result = 0.;
 
-    strcpy(polyakov_file_name, file_name);
-    polyakov_file_name[strlen(polyakov_file_name) - 4] = '\0';
-    strcat(polyakov_file_name, "_polyakov.bin");
+    strcpy(s_temp, file_name);
+    s_temp[strlen(s_temp) - 4] = '\0';
+    sprintf(polyakov_file_name, "beta_scan_data/polyakov/%s_polyakov.bin", s_temp);
 
     data_file = fopen(polyakov_file_name, "ab");
     if (data_file == NULL) {
@@ -1411,7 +1296,120 @@ void unitarize_lattice(const PAR *par, double *lattice) {
     }
 }
 
-void update_lattice(const PAR *par, double *lattice, const double *su2, double *acceptance) {
+void overrelaxation_update_lattice(const PAR *par, double *lattice, const double *su2) {
+    double m_temp[4] = {0}, 
+           m_staples[4] = {0}; 
+
+    /* Loop through the whole lattice (all independent links) */
+    for (int i = 0; i < par->L_t; i++) {
+        for (int j = 0; j < par->L; j++) {
+            for (int k = 0; k < par->L; k++) {
+                for (int l = 0; l < par->L; l++) {
+
+                    for (int dir_1 = 0; dir_1 < 4; dir_1++) {
+                        /* calculate the sum over all staples 
+                         * (parts of plaquette operators which contain the link that is to be updated) 
+                         * which is needed to calculate the differences in action later */
+                        for (int ii = 0; ii < 4; ii++) 
+                            m_staples[ii] = 0.;
+                        
+                        for (int dir_2 = 0; dir_2 < 4; dir_2++) {
+                            
+                            if (dir_1 == dir_2) 
+                                continue;
+                            
+                            psl_su2_product_3_add(
+                                0, 
+                                1, 
+                                1, 
+                                lattice + 4 * periodic_ind(
+                                    i + ((dir_1 == 0) ? 1 : 0), 
+                                    j + ((dir_1 == 1) ? 1 : 0),
+                                    k + ((dir_1 == 2) ? 1 : 0),
+                                    l + ((dir_1 == 3) ? 1 : 0),
+                                    dir_2,
+                                    par->L_t, 
+                                    par->L
+                                ),
+                                lattice + 4 * periodic_ind(
+                                    i + ((dir_2 == 0) ? 1 : 0),
+                                    j + ((dir_2 == 1) ? 1 : 0),
+                                    k + ((dir_2 == 2) ? 1 : 0),
+                                    l + ((dir_2 == 3) ? 1 : 0),
+                                    dir_1,
+                                    par->L_t, 
+                                    par->L
+                                ),
+                                lattice + 4 * ind(i, j, k, l, dir_2, par->L),
+                                m_staples
+                            );
+
+                            psl_su2_product_3_add(
+                                1, 
+                                1, 
+                                0, 
+                                lattice + 4 * periodic_ind(
+                                    i + ((dir_1 == 0) ? 1 : 0) + ((dir_2 == 0) ? -1 : 0), 
+                                    j + ((dir_1 == 1) ? 1 : 0) + ((dir_2 == 1) ? -1 : 0),
+                                    k + ((dir_1 == 2) ? 1 : 0) + ((dir_2 == 2) ? -1 : 0),
+                                    l + ((dir_1 == 3) ? 1 : 0) + ((dir_2 == 3) ? -1 : 0),
+                                    dir_2,
+                                    par->L_t, 
+                                    par->L
+                                ),
+                                lattice + 4 * periodic_ind(
+                                    i + ((dir_2 == 0) ? -1 : 0),
+                                    j + ((dir_2 == 1) ? -1 : 0),
+                                    k + ((dir_2 == 2) ? -1 : 0),
+                                    l + ((dir_2 == 3) ? -1 : 0),
+                                    dir_1,
+                                    par->L_t, 
+                                    par->L
+                                ),
+                                lattice + 4 * periodic_ind(
+                                    i + ((dir_2 == 0) ? -1 : 0), 
+                                    j + ((dir_2 == 1) ? -1 : 0),
+                                    k + ((dir_2 == 2) ? -1 : 0),
+                                    l + ((dir_2 == 3) ? -1 : 0),
+                                    dir_2,
+                                    par->L_t, 
+                                    par->L
+                                ),
+                                m_staples
+                            );
+                        }
+                        double det_staples = 0.;
+                        for (int ii = 0; ii < 4; ii++) 
+                            det_staples += m_staples[ii] * m_staples[ii];
+                        if (det_staples == 0.) {
+                            int su2_rand_ind = (int)(gsl_rng_uniform(par->ran_gen) * (double)par->n_su2);
+                            for (int ii = 0; ii < 4; ii++) 
+                                lattice[4 * ind(i, j, k, l, dir_1, par->L) + ii] = su2[4 * su2_rand_ind + ii];
+                        } else {
+                            double factor = 1. / sqrt(det_staples);
+                            for (int ii = 0; ii < 4; ii++) 
+                                m_staples[ii] *= factor;
+                            psl_su2_product_conjtrans_conjtrans(
+                                m_staples, 
+                                lattice + 4 * ind(i, j, k, l, dir_1, par->L), 
+                                m_temp
+                            );
+                            psl_su2_product_notrans_conjtrans(
+                                m_temp, 
+                                m_staples, 
+                                lattice + 4 * ind(i, j, k, l, dir_1, par->L)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+}
+
+void metropolis_update_lattice(const PAR *par, double *lattice, const double *su2, double *acceptance) {
     double Delta_S;
     double m_workspace_arr[16] = {0}; 
     const int
@@ -1434,7 +1432,7 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
                          * (parts of plaquette operators which contain the link that is to be updated) 
                          * which is needed to calculate the differences in action later */
                         for (int ii = 0; ii < 4; ii++) 
-                            m_workspace_arr[staples_index_offset + ii] = 0;
+                            m_workspace_arr[staples_index_offset + ii] = 0.;
                         
                         for (int dir_2 = 0; dir_2 < 4; dir_2++) {
                             
@@ -1503,7 +1501,7 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
                             //for (int jj = 0; jj < 4; jj++) 
                             //    printf("DEBUG: %d\t%g\n", jj, m_workspace_arr[staples_index_offset + jj]);
                         }
-                        /* do the specified number of MC-updates of this link */
+                        /* do the specified number of Metropolis-updates of this link */
                         for (int n = 0; n < par->n_hits; n++) {
                             /* multiply with a random SU(2)-matrix and save in a temporary matrix, until we
                              * know if we will use it */
@@ -1526,9 +1524,13 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
                             );
 
                             Delta_S = -par->beta * 
-                                m_workspace_arr[loops_index_offset] / 
-                                (double)(par->tadpole * par->tadpole * par->tadpole * par->tadpole);
+                                m_workspace_arr[loops_index_offset] /* / 
+                                    (double)(par->tadpole * par->tadpole * par->tadpole * par->tadpole) */;
                             
+                            /* DEBUG
+                            double action_1;
+                            measure_action_r(par, lattice, &action_1);
+                            DEBUG end */
                             /* accept/reject step */
                             if (Delta_S <= 0.) {
                                 /* save updated matrix */
@@ -1537,6 +1539,12 @@ void update_lattice(const PAR *par, double *lattice, const double *su2, double *
                                         m_workspace_arr[latt_proposal_index_offset + ii];
 
                                 *acceptance += 1.;
+
+                                /* DEBUG:
+                                double action_2;
+                                measure_action_r(par, lattice, &action_2);
+                                printf("DEBUG: Metropolis Delta Delta S = %e\n", action_2 - action_1 - Delta_S);
+                                DEBUG end */
                                                                 
                             } else {
                                 if (gsl_rng_uniform(par->ran_gen) < exp(-Delta_S)) {
@@ -1569,9 +1577,10 @@ void init_lattice(const PAR *par, double *lattice, const double *su2) {
 
                         su2_index = (int)(gsl_rng_uniform(par->ran_gen) * par->n_su2);
                         
-                        for (int ii = 0; ii < 4; ii++) 
+                        for (int ii = 0; ii < 4; ii++) { 
                             lattice[4 * ind(i, j, k, l, dir, par->L) + ii] = 
-                            su2[4 * su2_index + ii];
+                                su2[4 * su2_index + ii];
+                        }
                     }
                 }
             }
