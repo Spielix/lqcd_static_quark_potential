@@ -170,7 +170,6 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
         err_abs = gamma_error(data_abs, tot_mean_abs, n_dataset, n_replicas, &std_dev_abs, &t_corr_abs, &t_corr_err_abs);
         err2 = gamma_error(data2, tot_mean2, n_dataset, n_replicas, &std_dev2, &t_corr2, &t_corr_err2);
         err4 = gamma_error(data4, tot_mean4, n_dataset, n_replicas, &std_dev4, &t_corr4, &t_corr_err4);
-//        err = error_auto_weight_simple(data[0], tot_mean, n_dataset[0], &std_dev, &t_corr);
     }
     free(n_dataset);
     free(n_dataset_fl);
@@ -221,7 +220,6 @@ int main(int argc, char **argv) {
 		printf("Usage: ./autocorr {INPUTFILE_1} {...}\n");
 		return 1;
 	}
-    printf("beta\tL_t\tmean\terror\tcorr_time\n");
     for (int arg = 1; arg < argc;) {
         n_replicas = atoi(argv[arg]);
         if (analyze_datasets(arg + 1, argv, n_replicas)) 
