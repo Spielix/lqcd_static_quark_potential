@@ -1,6 +1,6 @@
 import os 
 
-os.system("ls L12*a.bin > dummy.txt") 
+os.system("ls L15*.bin > dummy.txt") 
 fin = open("dummy.txt")
 
 inlist = fin.readlines()
