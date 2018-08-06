@@ -50,25 +50,20 @@ double gamma_error(
 }
 
 int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
-    char name[1000], s_temp[1000];
     double **tot_mean, 
            **std_dev, 
            **t_corr, 
            **err, 
            **t_corr_err, 
-           beta, 
+           beta; 
     double ****data = NULL, 
            ***means = NULL, 
-           *n_dataset_fl = NULL, 
-           *cov_2_4 = NULL;
+           *n_dataset_fl = NULL; 
     int *n_dataset = NULL, L_t, L;
 
     n_dataset = malloc(n_replicas * sizeof(int));
     n_dataset_fl = malloc(n_replicas * sizeof(double));
-    if ((data == NULL) || (means == NULL) || (n_dataset == NULL) || (n_dataset_fl == NULL)) {
-        printf("Error: Failed allocating memory for data! Exiting...\n");
-        return 1;
-    }
+    
     for (int replica = 0; replica < n_replicas; replica++) {
         PAR par;
         FILE *input = fopen(argv[arg_offset + replica], "rb");
@@ -104,11 +99,15 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
         }
         for(int i = 0; i < L_t - 1; i++) {
             for(int j = 0; j < L - 1; j++) {
-                data[i][j][replica] = malloc(n_dataset[replica] * sizeof(double));
-                for (int k = 0; k < n_dataset[replica]; k++) {
-                    fread(data[i][j][replica] + k, sizeof(double), 1, input);
-                }
+                data[i][j][replica] = malloc(n_dataset[replica] * sizeof(double));        
             }
+        }
+		for (int k = 0; k < n_dataset[replica]; k++) {
+			for (int i = 0; i < L_t - 1; i++) {
+				for (int j = 0; j < L - 1; j++) { 
+                    fread(data[i][j][replica] + k, sizeof(double), 1, input);
+				}
+			}
         }
         fclose(input);
     }
@@ -121,7 +120,10 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
         }
     }
 
-
+	if ((data == NULL) || (means == NULL) || (n_dataset == NULL) || (n_dataset_fl == NULL)) {
+        printf("Error: Failed allocating memory for data! Exiting...\n");
+        return 1;
+    }
     for (int replica = 0; replica < n_replicas; replica++) {
 
         for (int i = 0; i < L_t - 1; i++) {
@@ -134,16 +136,18 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
     for (int i = 0; i < L_t - 1; i++) {
         tot_mean[i] = malloc((L - 1) * sizeof(double));
         for (int j = 0; j < L - 1; j++) {
-            tot_mean[i][j] = gsl_stats_wmean(n_dataset_fl, 1, means[i][j], n_replicas);
+            tot_mean[i][j] = gsl_stats_wmean(n_dataset_fl, 1, means[i][j], 1, n_replicas);
         }
     }
 
     std_dev = malloc((L_t - 1) * sizeof(double *));
     t_corr = malloc((L_t - 1) * sizeof(double *));
+    t_corr_err = malloc((L_t - 1) * sizeof(double *));
     err = malloc((L_t - 1) * sizeof(double *));
     for(int i = 0; i < L_t - 1; i++){
         std_dev[i] = malloc((L - 1) * sizeof(double));
         t_corr[i] = malloc((L - 1) * sizeof(double));
+        t_corr_err[i] = malloc((L - 1) * sizeof(double));
         err[i] = malloc((L - 1) * sizeof(double));
         for (int j = 0; j < L - 1; j++) {
             err[i][j] = gamma_error(data[i][j], tot_mean[i][j], n_dataset, n_replicas, std_dev[i] + j, t_corr[i] + j, t_corr_err[i] + j);
@@ -167,18 +171,20 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
     free(data);
     free(means);
 
-    double *wt = malloc((par.L_t - 1) * sizeof(double));
-	double *wt_err = malloc((par.L_t - 1) * sizeof(double));
 	FILE *output;
-	char filename[100];
-	char mkdir[100];
+	char filename[1000];
+	char mkdir[1000];
     sprintf(filename, "L%d_Lt%d_beta%f", L, L_t, beta);
 	snprintf(mkdir, 100, "mkdir %s_pltdata", filename);
 	system(mkdir);
-	for (int r = 0; r < par.L - 1; r++) {
-		snprintf(filename, 100, "%s_pltdata/r%d.csv", filename, r + 1);
+	sprintf(mkdir, "%s", filename);
+	for (int r = 0; r < L - 1; r++) {
+		snprintf(filename, 100, "%s_pltdata/r%d.csv", mkdir, r + 1);
 		output = fopen(filename, "w");
-		for(int t = 0; t < par.L_t - 1; t++){
+		if (output == NULL) {
+			printf("Failed opening file %s for writing plot data. Exiting", filename);
+		}
+		for(int t = 0; t < L_t - 1; t++){
 			fprintf(
                 output, 
                 "%d\t%g\t%g\n", 
@@ -189,6 +195,19 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
 		}
 		fclose(output);
 	}
+	for (int i = 0; i < L_t - 1; i++) {
+		free(tot_mean[i]);
+		free(err[i]);
+		free(t_corr[i]);
+		free(t_corr_err[i]);
+		free(std_dev[i]);
+	}
+	free(tot_mean);
+	free(err);
+	free(t_corr);
+	free(t_corr_err);
+	free(std_dev);
+	
     return 0;
 }
 
