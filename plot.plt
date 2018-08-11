@@ -34,10 +34,11 @@ plot 'fin_size_scaling_L08.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):(
     h(x) title 'Polynom zweiter Ordnung'
 
 set output "beta_scan_order.tex"
-set xlabel "$\beta$"
-set ylabel "$\langle |L| \rangle$"
+set xlabel '$\beta$'
+set ylabel '$\langle |L| \rangle$'
+unset label 2
 plot "fin_size_scaling_L16.csv" using 1:8:9 notitle with yerrorbars
 
 set output "beta_scan_order_ctime.tex"
-set ylabel "$\tau_{\text{int},|L|}$"
+set ylabel '$\tau_{\text{int},|L|}$'
 plot "fin_size_scaling_L16.csv" using 1:10:21 notitle with linespoints
