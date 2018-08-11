@@ -1,7 +1,3 @@
-/*
- * gcc -O3 -o summary summary.c -lm
- */
-
 #include <stdio.h>
 #include <float.h>
 #include <complex.h>
@@ -152,7 +148,7 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
         }
         fclose(input);
 
-        means[replica] = gsl_stats_mean(data[replica], 1, par.n_configs);
+        means[replica] = gsl_stats_mean(data[replica], 1, n_dataset[replica]);
         means_abs[replica] = gsl_stats_mean(data_abs[replica], 1, n_dataset[replica]);
         means2[replica] = gsl_stats_mean(data2[replica], 1, n_dataset[replica]);
         means4[replica] = gsl_stats_mean(data4[replica], 1, n_dataset[replica]);
@@ -221,7 +217,7 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
 int main(int argc, char **argv) {
     int n_replicas;
     if(argc < 2){
-		printf("Usage: ./autocorr {INPUTFILE_1} {...}\n");
+		printf("Usage: ./autocorr {n_files1} {file_1...} {...}\n");
 		return 1;
 	}
     for (int arg = 1; arg < argc;) {
