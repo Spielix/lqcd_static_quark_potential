@@ -188,7 +188,7 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
     free(means_abs);
     free(means2);
     free(means4);
-    printf("%g %d %d %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g\n", 
+    printf("%g %d %d %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g %g\n", 
             beta, 
             L_t, 
             L, 
@@ -208,7 +208,11 @@ int analyze_datasets(int arg_offset, char **argv, int n_replicas) {
             err4, 
             t_corr4, 
             std_dev4, 
-            cov_2_4_tot
+            cov_2_4_tot,
+			t_corr_err, 
+			t_corr_err_abs, 
+			t_corr_err2, 
+			t_corr_err4
     );
     return 0;
 }
