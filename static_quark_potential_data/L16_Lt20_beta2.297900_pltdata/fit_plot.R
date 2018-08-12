@@ -86,5 +86,5 @@ data = read.table(args[1])
 par = rep(1,2)
 res <- jfit(x=data[[1]], y=data[[2]], dy=data[[3]], f=energy, par=par)
 
-jplot(data[[1]], data[[2]], data[[3]], xlab="m_s", ylab="E")
+jplot(data[[1]], data[[2]], data[[3]], xlab="n_tau", ylab="W", log="y")
 jlines(energy, res[1,c(1:length(par))], data=data[[1]])

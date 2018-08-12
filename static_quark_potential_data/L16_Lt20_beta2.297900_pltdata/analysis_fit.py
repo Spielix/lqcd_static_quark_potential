@@ -34,6 +34,14 @@ for j in range(len(inlist)):
     os.system(smove)
     fitin = open("fit_param.txt")
     outlist = fitin.readlines()
+    fitin.close()
+    print(outlist[1])
+    chisq = (float)(outlist[1].split()[3])
+    datf = open(inlist[j])
+    datfl = datf.readlines()
+    datf.close()
+    chisq = chisq / (len(datfl)-2)
+    print(chisq)
     values.append([float(inlist[j][1:-4]), float(outlist[1].split()[2]), float(outlist[2].split()[2])])
     sremove = "rm fit_param.txt"
     os.system(sremove)
@@ -46,7 +54,7 @@ for j in range(len(values)):
     data_file.write(" ")
     data_file.write(str(values[j][2]))
     data_file.write("\n")
-
+data_file.close()
 
 #print(values)  
 os.remove("dummy.txt")
