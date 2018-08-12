@@ -33,3 +33,12 @@ plot 'fin_size_scaling_L08.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):(
     'fin_size_scaling_L16.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):($16 / $12**2):(sqrt((($1 - beta_c) * dnu * $3**(1 / nu - 1) / nu / beta_c)**2 + ($1 * dbeta_c * $3**(1 / nu) / beta_c**2)**2 - ($1 - beta_c) * $1 * $3**(2 / nu - 1) / beta_c**3 / nu * cor_bcnu * dnu * dbeta_c)):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 16$' with xyerrorbars,\
     h(x) title 'Polynom zweiter Ordnung'
 
+set output "beta_scan_order.tex"
+set xlabel '$\beta$'
+set ylabel '$\langle |L| \rangle$'
+unset label 2
+plot "fin_size_scaling_L16.csv" using 1:8:9 notitle with yerrorbars
+
+set output "beta_scan_order_ctime.tex"
+set ylabel '$\tau_{\text{int},|L|}$'
+plot "fin_size_scaling_L16.csv" using 1:10:21 notitle with linespoints
