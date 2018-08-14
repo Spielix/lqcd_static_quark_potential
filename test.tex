@@ -1,0 +1,137 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{color}
+\usepackage{tikz}
+
+\title{Test}
+\author{Paul Große-Bley}
+\date{April 2018}
+
+\begin{document}
+
+\begin{figure}
+	\input{./fin_size_scaling.tex}
+	\caption{test}
+	\label{test4}
+\end{figure}
+
+\begin{figure}
+	\input{./fin_size_scaling_straight.tex}
+	\caption{test}
+	\label{t5est4}
+\end{figure}
+
+\begin{figure}
+	\input{./overr_metropolis_comp.tex}
+	\caption{test}
+	\label{tes7t4}
+\end{figure}
+
+
+\begin{figure}
+	\input{./temperature_scan_order.tex}
+	\caption{test}
+	\label{t18est}
+\end{figure}
+
+\begin{figure}
+	\input{./temperature_scan_order_ctime.tex}
+	\caption{test}
+	\label{te9st}
+\end{figure}
+
+
+
+
+\begin{figure}
+	\input{./beta_scan_order.tex}
+	\caption{test}
+	\label{t1est}
+\end{figure}
+
+\begin{figure}
+	\input{./beta_scan_order_ctime.tex}
+	\caption{test}
+	\label{test}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\begin{tikzpicture}[scale=3]
+	\draw [<->] (-0.5,0.25) -- (-0.5,0.5) -- (-0.25,0.5);
+	\path (-0.5,0.25) node[align=center, right] {$\nu$} (-0.25,0.5) node[align=center, above] {$\mu$};
+	\draw [-latex, ultra thick] (0.05,0) --node[align=center, below]{$U_\mu^{\mathop{\vphantom{\dag}}}(x)$} (0.95,0);
+	\draw [latex-, ultra thick] (1.05,0) --node[align=center, below]{$U_\mu^\dag(x+\hat{\mu})$} (1.95,0);
+	\draw [ultra thin, dashed] (-0.5,0) -- (-0.05,0);
+	\draw [ultra thin, dashed] (2.05,0) -- (2.5,0);
+	\draw [ultra thin, dashed] (0,-0.5) -- (0,-0.05);
+	\draw [ultra thin, dashed] (0,0.05) -- (0,0.5);
+	\draw [ultra thin, dashed] (1,-0.5) -- (1,-0.05);
+	\draw [ultra thin, dashed] (1,0.18) -- (1,0.5);
+	\draw [ultra thin, dashed] (2,-0.5) -- (2,-0.05);
+	\draw [ultra thin, dashed] (2,0.05) -- (2,0.5);
+	\filldraw (0,0) circle (0.5pt) node[align=center, above left]{$x$};
+	\filldraw (1,0) circle (0.5pt) node[align=center, above]{$x + \hat{\mu}$};
+	\filldraw (2,0) circle (0.5pt) node[align=center, above right]{$x + 2\hat{\mu}$};
+	\end{tikzpicture}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\begin{tikzpicture}[scale=3]
+	\draw [<->] (-0.5,0.25) -- (-0.5,0.5) -- (-0.25,0.5);
+	\path (-0.5,0.25) node[align=center, right] {$\nu$} (-0.25,0.5) node[align=center, above] {$\mu$};
+	\draw [-latex, ultra thick] (0.05,0) --node[align=center, above]{$U_\mu(x)$} (0.95,0);
+	\draw [-latex, ultra thick] (1,-0.05) --node[align=center, right]{$U_\nu(x+\hat{\mu})$} (1,-0.95);
+	\draw [-latex, ultra thick] (0.95,-1) --node[align=center, below]{$U_\mu^\dag(x+\hat{\nu})$} (0.05,-1);
+	\draw [-latex, ultra thick] (0,-0.95) --node[align=center, left]{$U_\nu^\dag(x)$} (0,-0.05);
+	\draw [ultra thin, dashed] (-0.5,0) -- (-0.05,0);
+	\draw [ultra thin, dashed] (1.05,0) -- (1.5,0);
+	\draw [ultra thin, dashed] (-0.5,-1) -- (-0.05,-1);
+	\draw [ultra thin, dashed] (1.05,-1) -- (1.5,-1);
+	\draw [ultra thin, dashed] (0,-1.5) -- (0,-1.05);
+	\draw [ultra thin, dashed] (0,0.05) -- (0,0.5);
+	\draw [ultra thin, dashed] (1,0.05) -- (1,0.5);
+	\draw [ultra thin, dashed] (1,-1.5) -- (1,-1.05);
+	\filldraw (0,0) circle (0.5pt) node[align=center, above left]{$x$};
+	\filldraw (1,0) circle (0.5pt) node[align=center, above right]{$x + \hat{\mu}$};
+	\filldraw (1,-1) circle (0.5pt) node[align=center, below right]{$x + \hat{\mu} + \hat{\nu}$};
+	\filldraw (0,-1) circle (0.5pt) node[align=center, below left]{$x + \hat{\nu}$};
+	\end{tikzpicture}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\begin{tikzpicture}[scale=3]
+	\draw [<->] (-0.5,0.25) -- (-0.5,0.5) -- (-0.25,0.5);
+	\path (-0.5,0.25) node[align=center, right] {$\mu$} (-0.25,0.5) node[align=center, above] {$\nu$};
+	\draw [-latex, ultra thick] (0.05,0) --node[align=center, above]{$U_\nu(x-\hat{\nu})$} (0.95,0);
+	\draw [latex-, ultra thick] (1.05,0) --node[align=center, above]{$U_\nu^\dag(x)$} (1.95,0);
+	\draw [-latex, ultra thick, dashed] (1,-0.05) -- (1,-0.5) node[align=center, left] {$U_\mu(x)$} -- (1,-0.95);
+	\draw [-latex, ultra thick] (0.95,-1) --node[align=center, above]{$U_\nu^\dag(x+\hat{\mu}-\hat{\nu})$} (0.05,-1);
+	\draw [latex-, ultra thick] (1.95,-1) --node[align=center, above]{$U_\nu(x+\hat{\mu})$} (1.05,-1);
+	\draw [-latex, ultra thick] (0,-0.95) --node[align=center, left]{$U_\mu^\dag(x-\hat{\nu})$} (0,-0.05);
+	\draw [-latex, ultra thick] (2,-0.95) --node[align=center, left]{$U_\mu^\dag(x+\hat{\nu})$} (2,-0.05);
+	\draw [ultra thin, dashed] (-0.5,0) -- (-0.05,0);
+	\draw [ultra thin, dashed] (-0.5,-1) -- (-0.05,-1);
+	\draw [ultra thin, dashed] (0,-1.5) -- (0,-1.05);
+	\draw [ultra thin, dashed] (0,0.05) -- (0,0.5);
+	\draw [ultra thin, dashed] (1,0.18) -- (1,0.5);
+	\draw [ultra thin, dashed] (1,-1.5) -- (1,-1.18);
+	\draw [ultra thin, dashed] (2.05,0) -- (2.5,0);
+	\draw [ultra thin, dashed] (2,0.05) -- (2,0.5);
+	\draw [ultra thin, dashed] (2.05,-1) -- (2.5,-1);
+	\draw [ultra thin, dashed] (2,-1.05) -- (2,-1.5);
+	\filldraw (0,0) circle (0.5pt) node[align=center, above left]{$x - \hat{\nu}$};
+	\filldraw (1,0) circle (0.5pt) node[align=center, above]{$x$};
+	\filldraw (1,-1) circle (0.5pt) node[align=center, below]{$x + \hat{\mu}$};
+	\filldraw (0,-1) circle (0.5pt) node[align=center, below left]{$x + \hat{\mu} - \hat{\nu}$};
+	\filldraw (2,0) circle (0.5pt) node[align=center, above right]{$x + \hat{\nu}$};
+	\filldraw (2,-1) circle (0.5pt) node[align=center, below right]{$x + \hat{\mu} + \hat{\nu}$};
+	\end{tikzpicture}
+\end{figure}
+
+
+\end{document}
