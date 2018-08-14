@@ -42,7 +42,7 @@ double gamma_error(
 	}
     integ_corr_time *= 1. + (2. * (double)window + 1.) / (double)n_tot;
 	if (t_corr) *t_corr = integ_corr_time;
-    if (t_corr_err) *t_corr_err = 4. * ((double)window + 0.5 - integ_corr_time) * integ_corr_time * integ_corr_time / (double)n_tot;
+    if (t_corr_err) *t_corr_err = sqrt(4. * ((double)window + 0.5 - integ_corr_time) * integ_corr_time * integ_corr_time / (double)n_tot);
 
 
 	err = sqrt(2. * integ_corr_time * cov_0 / (double)n_tot);
