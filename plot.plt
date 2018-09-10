@@ -6,10 +6,11 @@ set samples 10000
 #set pointsize 0.1
 set format '$%g$'
 #set xtics ('0' 0, '' 1000, '2000' 2000, '' 3000, '4000' 4000, '' 5000, '6000' 6000, '' 7000, '8000' 8000)
-set terminal epslatex size 15.0cm, 9.0cm color colortext
+#set terminal epslatex size 15.0cm, 9.0cm color colortext
+set terminal epslatex size 12.0cm, 8.0cm color colortext #for beamer
 set fit results
 #set fit errorvariables
-set pointsize
+set pointsize 
 
 set autoscale
 set xlabel '$\frac{\beta - \beta_c}{\beta_c}N_\sigma^{1/\nu}$'
@@ -32,7 +33,7 @@ plot 'fin_size_scaling_L08.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):(
     'fin_size_scaling_L14.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):($16 / $12**2):(sqrt((($1 - beta_c) * dnu * $3**(1 / nu - 1) / nu / beta_c)**2 + ($1 * dbeta_c * $3**(1 / nu) / beta_c**2)**2 - ($1 - beta_c) * $1 * $3**(2 / nu - 1) / beta_c**3 / nu * cor_bcnu * dnu * dbeta_c)):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 14$' with xyerrorbars,\
     'fin_size_scaling_L15.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):($16 / $12**2):(sqrt((($1 - beta_c) * dnu * $3**(1 / nu - 1) / nu / beta_c)**2 + ($1 * dbeta_c * $3**(1 / nu) / beta_c**2)**2 - ($1 - beta_c) * $1 * $3**(2 / nu - 1) / beta_c**3 / nu * cor_bcnu * dnu * dbeta_c)):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 15$' with xyerrorbars,\
     'fin_size_scaling_L16.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):($16 / $12**2):(sqrt((($1 - beta_c) * dnu * $3**(1 / nu - 1) / nu / beta_c)**2 + ($1 * dbeta_c * $3**(1 / nu) / beta_c**2)**2 - ($1 - beta_c) * $1 * $3**(2 / nu - 1) / beta_c**3 / nu * cor_bcnu * dnu * dbeta_c)):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 16$' with xyerrorbars,\
-    h(x) title 'angepasste Parabel'
+    h(x) title 'Parabel'
 
 
 set label 2 at -0.15, 1.3 '$\beta_c=\num{2.2983+-0.0002}\qquad\nu=\num{0.72+-0.02}$' front
@@ -52,17 +53,31 @@ plot 'fin_size_scaling_L08.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):(
     'fin_size_scaling_L14.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):($16 / $12**2):(sqrt((($1 - beta_c) * dnu * $3**(1 / nu - 1) / nu / beta_c)**2 + ($1 * dbeta_c * $3**(1 / nu) / beta_c**2)**2 - ($1 - beta_c) * $1 * $3**(2 / nu - 1) / beta_c**3 / nu * cor_bcnu * dnu * dbeta_c)):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 14$' with xyerrorbars,\
     'fin_size_scaling_L15.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):($16 / $12**2):(sqrt((($1 - beta_c) * dnu * $3**(1 / nu - 1) / nu / beta_c)**2 + ($1 * dbeta_c * $3**(1 / nu) / beta_c**2)**2 - ($1 - beta_c) * $1 * $3**(2 / nu - 1) / beta_c**3 / nu * cor_bcnu * dnu * dbeta_c)):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 15$' with xyerrorbars,\
     'fin_size_scaling_L16.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):($16 / $12**2):(sqrt((($1 - beta_c) * dnu * $3**(1 / nu - 1) / nu / beta_c)**2 + ($1 * dbeta_c * $3**(1 / nu) / beta_c**2)**2 - ($1 - beta_c) * $1 * $3**(2 / nu - 1) / beta_c**3 / nu * cor_bcnu * dnu * dbeta_c)):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 16$' with xyerrorbars,\
-    h1(x) title 'angepasste Gerade'
+    h1(x) title 'Gerade'
 
 
+unset label 2
+unset label 3
+set output "fin_size_bind.tex"
+set xlabel '$\beta$'
+set xrange [2.289:2.311]
+set yrange [1.25:2.25]
 
+plot 'fin_size_scaling_L08.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2 * $16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma =\  8$' with yerrorbars,\
+    'fin_size_scaling_L09.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2 *$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma =\  9$' with yerrorbars,\
+    'fin_size_scaling_L10.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 10$' with yerrorbars,\
+    'fin_size_scaling_L11.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 11$' with yerrorbars,\
+    'fin_size_scaling_L12.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 12$' with yerrorbars,\
+    'fin_size_scaling_L13.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 13$' with yerrorbars,\
+    'fin_size_scaling_L14.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 14$' with yerrorbars,\
+    'fin_size_scaling_L15.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 15$' with yerrorbars,\
+    'fin_size_scaling_L16.csv' using 1:($16 / $12**2):(sqrt(($17 / $12**2)**2 + (2*$16 * $13 / $12**3)**2 - 4 * $20 * $16 * $17 * $13 / ($12**5 * $15 * $19))) title '$N_\sigma = 16$' with yerrorbars
 
 set output "overr_metropolis_comp.tex"
 set xlabel '$\beta$'
 set ylabel '$\langle |L| \rangle$'
 set xrange [2.289:2.311]
 set yrange [0.09:0.17]
-unset label 2
 C1=-5.611339;B1=2.491698;C2=-5.664823;B2=2.514981;
 f1(x)=C1+B1*x
 f2(x)=C2+B2*x
@@ -75,7 +90,7 @@ set autoscale
 set output "temperature_scan_order.tex"
 set xlabel '$N_\tau$'
 set xrange [1.5:8.5]
-plot "temperature_scan.csv" using 2:8:9 notitle with yerrorbars
+plot "temperature_scan.csv" using 2:8:9 notitle with yerrorbars lw 3
 
 set output "temperature_scan_order_ctime.tex"
 set ylabel '$\tau_{\text{int},|L|}$'
