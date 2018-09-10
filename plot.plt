@@ -1,6 +1,6 @@
 reset
 
-set encoding iso_8859_1
+#set encoding iso_8859_1
 #set grid
 set samples 10000
 #set pointsize 0.1
@@ -59,10 +59,11 @@ plot 'fin_size_scaling_L08.csv' using ((($1 - beta_c) / beta_c) *$3**(1 / nu)):(
 
 set output "overr_metropolis_comp.tex"
 set xlabel '$\beta$'
-set ylabel '$\langle |L| \rangle$'
+set ylabel '$\langle |L|/N_\sigma^3 \rangle$'
 set xrange [2.289:2.311]
 set yrange [0.09:0.17]
 unset label 2
+unset label 3
 C1=-5.611339;B1=2.491698;C2=-5.664823;B2=2.514981;
 f1(x)=C1+B1*x
 f2(x)=C2+B2*x
@@ -85,7 +86,7 @@ set autoscale
 
 set output "beta_scan_order.tex"
 set xlabel '$\beta$'
-set ylabel '$\langle |L| \rangle$'
+set ylabel '$\langle |L|/N_\sigma^3 \rangle$'
 set xrange [1.95:2.55]
 plot "beta_scan.csv" using 1:8:9 notitle with yerrorbars
 
@@ -93,3 +94,25 @@ set output "beta_scan_order_ctime.tex"
 set ylabel '$\tau_{\text{int},|L|}$'
 set yrange [0:45]
 plot "beta_scan.csv" using 1:10:21 notitle with yerrorbars
+
+set output "exponential_example.tex"
+set ylabel '$\langle W(n_\sigma=3, n_\tau)\rangle$'
+set xlabel '$n_\tau$'
+set autoscale
+set xrange [3.5:10.5]
+set logscale y
+W = 0.4829758; V = 0.8825396;
+s(x) = W*exp(-V*x)
+plot "static_quark_potential_data/L16_Lt20_beta2.297700_pltdata/r3.csv" using 1:2:3 title 'Daten f\"ur $\beta=\num{2.2977}$' with yerrorbars,\
+    s(x) title 'Exponentielle Anpassungsfunktion, reduziertes $\chi^2 = \num{0.94}$'
+
+set output "potential_example.tex"
+set ylabel '$a V(a n_\sigma)$'
+set xlabel '$n_\sigma$'
+set autoscale
+set xrange [0.5:7.5]
+unset logscale y
+D = 0.4776437; E = 0.1573022; F = -0.2058107;
+pot(x) = D + E*x + F/x
+plot "static_quark_potential_data/L16_Lt20_beta2.297700_pltdata/potential.csv" using 1:2:3 title 'Daten f\"ur $\beta=\num{2.2977}$' with yerrorbars,\
+    pot(x) title 'Anpassungsfunktion, reduziertes $\chi^2  = \num{2.21}$'
